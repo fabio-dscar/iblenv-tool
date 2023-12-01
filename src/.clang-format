@@ -1,0 +1,13 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+Language: Cpp
+DerivePointerAlignment: false
+PointerAlignment: Left
+AlwaysBreakTemplateDeclarations: Yes
+SpaceAfterTemplateKeyword: false
+AccessModifierOffset: -4
+BreakBeforeConceptDeclarations: true
+ColumnLimit: 90
+AllowShortFunctionsOnASingleLine: Inline
+IncludeBlocks: Preserve
+SortIncludes: Never
