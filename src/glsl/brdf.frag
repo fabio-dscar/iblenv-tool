@@ -1,7 +1,3 @@
-#version 460 core
-
-#define SINGLE_SCATTERING
-
 in vec2 oTexCoords;
 out vec2 FragColor;
 
@@ -40,13 +36,12 @@ vec2 IntegrateBRDF(float NdotV, float roughness) {
             float GVis = 4 * NdotL * G * VdotH / NdotH;
             float Fc = pow(1.0 - VdotH, 5.0);
 
-#ifdef SINGLE_SCATTERING
-            I1 += (1.0 - Fc) * GVis;
-            I2 += Fc * GVis;
-#endif
 #ifdef MULTI_SCATTERING
             I1 += Fc * GVis;
             I2 += GVis;
+#else
+            I1 += (1.0 - Fc) * GVis;
+            I2 += Fc * GVis;
 #endif
         }
     }
