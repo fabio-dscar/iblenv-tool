@@ -17,14 +17,15 @@ enum ShaderType {
     COMPUTE_SHADER = GL_COMPUTE_SHADER
 };
 
+static const std::string VerDirective = "#version 460 core\n\n";
+
 class Shader {
 public:
     Shader(const std::string& name, ShaderType type, const std::string& src)
-        : name(name), source(src), type(type) {}
-    ~Shader();
+        : name(name), source({src}), type(type) {}
 
     unsigned int id() const { return handle; }
-    bool compile();
+    bool compile(const std::string& defines = VerDirective);
 
 private:
     std::string name;
@@ -52,8 +53,10 @@ private:
 Shader LoadShaderFile(const std::string& filePath);
 Shader LoadShaderFile(ShaderType type, const std::string& filePath);
 std::unique_ptr<Program> CompileAndLinkProgram(const std::string& name,
-                                               std::span<const std::string> sourcePaths);
+                                               std::span<std::string> sourcePaths,
+                                               std::span<std::string> definesList = {});
 
+std::string BuildDefinesBlock(std::span<std::string> defines);
 std::string GetShaderLog(unsigned int handle);
 std::string GetProgramError(unsigned int handle);
 

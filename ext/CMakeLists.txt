@@ -21,6 +21,12 @@ else()
   set(ZLIB_LIBRARIES zlibstatic PARENT_SCOPE)
 endif()
 
+##################################
+## OpenGL
+find_package(OpenGL REQUIRED)
+
+set(OGL_LIBRARIES OpenGL::GL OpenPARENT_SCOPE)
+
 #########################################
 ## glad
 set(GLAD_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glad/include PARENT_SCOPE)

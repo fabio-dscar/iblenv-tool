@@ -17,8 +17,7 @@ namespace ibl {
 unsigned int quadVAO, quadVBO;
 
 GLFWwindow* window;
-std::unique_ptr<Program> program;
-void RenderQuad() {
+void RenderQuad(Program* prog) {
     if (quadVAO == 0) {
         // Positions and uvs
         float quadVertices[] = {
@@ -40,7 +39,7 @@ void RenderQuad() {
     }
 
     glBindVertexArray(quadVAO);
-    glUseProgram(program->id());
+    glUseProgram(prog->id());
     glUniform1ui(1, 8192);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
@@ -53,7 +52,7 @@ void InitOpenGL() {
     window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
     if (!window) {
         glfwTerminate();
-        util::ExitWithError("[Error] Couldn't create GLFW window.\n");
+        util::ExitWithError("[ERROR] Couldn't create GLFW window.\n");
     }
     glfwMakeContextCurrent(window);
 
@@ -89,8 +88,9 @@ void InitOpenGL() {
 }
 
 void ComputeBRDF(unsigned int texSize, unsigned int samples) {
+    auto defines = std::array{"MULTI_SCATTERING"s};
     auto paths = std::vector{"glsl/brdf.vert"s, "glsl/brdf.frag"s, "glsl/common.frag"s};
-    program = CompileAndLinkProgram("brdf", paths);
+    auto program = CompileAndLinkProgram("brdf", paths, defines);
 
     GLuint captureFBO, captureRBO;
     glCreateFramebuffers(1, &captureFBO);
@@ -114,15 +114,17 @@ void ComputeBRDF(unsigned int texSize, unsigned int samples) {
     glViewport(0, 0, texSize, texSize);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    RenderQuad();
+    RenderQuad(program.get());
 
     std::size_t imageSize = 2 * texSize * texSize * sizeof(float);
     auto data = std::make_unique<std::byte[]>(imageSize);
     glGetTextureImage(brdfLUTTexture, 0, GL_RG, GL_FLOAT, imageSize, data.get());
 
     // Save Image
-    util::SaveEXRImage("brdf2.exr", texSize, texSize, 2,
+    util::SaveEXRImage("brdf3.exr", texSize, texSize, 2,
                        reinterpret_cast<float*>(data.get()));
+
+    program.reset();
 
     glfwDestroyWindow(window);
     glfwTerminate();

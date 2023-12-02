@@ -15,12 +15,6 @@ endif()
 ## Third party libs
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext)
 
-message(STATUS ${GLFW_INCLUDE_DIR})
-
-##################################
-## OpenGL
-find_package(OpenGL REQUIRED)
-
 set(IBLENV_SOURCES
   src/util.cpp
   src/shader.cpp
@@ -36,8 +30,8 @@ target_include_directories(iblenv PUBLIC
   ${ZLIB_INCLUDE_DIR}
 )
 target_link_libraries(iblenv PRIVATE
-  OpenGL::GL
   glad
+  ${OGL_LIBRARIES}
   ${ZLIB_LIBRARIES}
   ${GLFW_LIBRARIES}
 )

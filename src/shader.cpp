@@ -8,18 +8,13 @@
 using namespace ibl;
 using namespace std::filesystem;
 
-Shader::~Shader() {
-    // if (handle != 0)
-    //     glDeleteShader(handle);
-}
-
-bool Shader::compile() {
+bool Shader::compile(const std::string& defines) {
     handle = glCreateShader(type);
     if (handle == 0)
         util::ExitWithError(std::format("Could not create shader {}", name));
 
-    const char* cstr = source.c_str();
-    glShaderSource(handle, 1, &cstr, 0);
+    const char* sources[] = {defines.c_str(), source.c_str()};
+    glShaderSource(handle, 2, sources, 0);
     glCompileShader(handle);
 
     GLint result;
@@ -77,7 +72,8 @@ bool Program::link() {
 
 void Program::cleanShaders() {
     for (auto sid : srcHandles)
-        glDeleteShader(sid);
+        if (glIsShader(sid) == GL_TRUE)
+            glDeleteShader(sid);
 }
 
 std::string ibl::GetShaderLog(unsigned int handle) {
@@ -124,15 +120,30 @@ Shader ibl::LoadShaderFile(ShaderType type, const std::string& filePath) {
     return {path(filePath).filename(), type, source.value()};
 }
 
+std::string ibl::BuildDefinesBlock(std::span<std::string> defines) {
+    std::string defBlock = VerDirective;
+    for (auto sv : defines) {
+        defBlock.append("#define ");
+        defBlock.append(sv.begin(), sv.end());
+        defBlock.append("\n");
+    }
+    return defBlock;
+}
+
 std::unique_ptr<Program>
 ibl::CompileAndLinkProgram(const std::string& name,
-                        std::span<const std::string> sourcePaths) {
+                           std::span<std::string> sourcePaths,
+                           std::span<std::string> definesList) {
+
     auto program = std::make_unique<Program>(name);
+    auto defines = BuildDefinesBlock(definesList);
+
     for (auto& path : sourcePaths) {
         Shader s = LoadShaderFile(path);
-        s.compile();
+        s.compile(defines);
         program->addShader(s);
     }
+
     program->link();
     program->cleanShaders();
     return program;
