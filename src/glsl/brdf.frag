@@ -1,4 +1,4 @@
-in vec2 oTexCoords;
+in vec2 fsTexCoords;
 out vec2 FragColor;
 
 layout(location = 1) uniform uint numSamples;
@@ -33,10 +33,11 @@ vec2 IntegrateBRDF(float NdotV, float roughness) {
 
         if (NdotL > 0.0) {
             float G = GeoSmith(NdotV, NdotL, roughness);
-            float GVis = 4 * NdotL * G * VdotH / NdotH;
+            float InvPdf = 4 * VdotH / NdotH;
+            float GVis = G * InvPdf * NdotL;
             float Fc = pow(1.0 - VdotH, 5.0);
 
-#ifdef MULTI_SCATTERING
+#ifdef MULTISCATTERING
             I1 += Fc * GVis;
             I2 += GVis;
 #else
@@ -53,5 +54,5 @@ vec2 IntegrateBRDF(float NdotV, float roughness) {
 }
 
 void main() {
-    FragColor = IntegrateBRDF(oTexCoords.x, oTexCoords.y);
+    FragColor = IntegrateBRDF(fsTexCoords.x, fsTexCoords.y);
 }
