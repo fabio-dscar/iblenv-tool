@@ -1,8 +1,11 @@
 #include <cstdlib>
+#include <ios>
+#include <memory>
 #include <util.h>
 
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 #include <format>
 
 #define TINYEXR_USE_MINIZ 0
@@ -10,29 +13,79 @@
 #define TINYEXR_IMPLEMENTATION
 #include <tinyexr.h>
 
-using namespace ibl;
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_PSD
+#define STBI_NO_BMP
+#define STBI_NO_JPEG
+#define STBI_NO_GIF
+#include <stb/stb_image.h>
 
-float* util::LoadEXRImage(const std::string& filePath) {
+using namespace ibl;
+using namespace ibl::util;
+using namespace std::filesystem;
+
+RawImage util::LoadImage(const std::string& filePath) {
+    auto ext = path(filePath).extension().string();
+    if (ext == ".exr")
+        return LoadEXRImage(filePath);
+    else if (ext == ".hdr")
+        return LoadHDRImage(filePath);
+
+    ExitWithError("Unsupported format {}", ext);
+
+    return {};
+}
+
+RawImage util::LoadHDRImage(const std::string& filePath) {
+    // stbi_set_flip_vertically_on_load(true);
+    int width, height, nChan;
+    std::byte* data = reinterpret_cast<std::byte*>(
+        stbi_loadf(filePath.c_str(), &width, &height, &nChan, 0));
+
+    return {std::unique_ptr<std::byte>(data), width, height, nChan, sizeof(float)};
+}
+
+RawImage util::LoadEXRImage(const std::string& filePath, bool keepAlpha) {
     float* out = nullptr; // width * height * RGBA
     int width;
     int height;
     const char* err = nullptr; // or nullptr in C++11
 
     int ret = LoadEXR(&out, &width, &height, filePath.c_str(), &err);
-
     if (ret != TINYEXR_SUCCESS) {
         if (err) {
-            fprintf(stderr, "ERR : %s\n", err);
-            FreeEXRErrorMessage(err); // release memory of error message.
+            std::string errStr = err;
+            FreeEXRErrorMessage(err);
+            ExitWithError("{}", errStr);
         }
     } else {
         std::cout << std::format("Loaded! {}x{}\n", width, height);
     }
 
-    return out;
+    return {std::unique_ptr<std::byte>(reinterpret_cast<std::byte*>(out)), width, height,
+            4, sizeof(float)};
 }
 
-bool util::SaveEXRImage(const std::string& fname, unsigned int width, unsigned int height, unsigned int numChannels, float* data) {
+void DumpRawImage(const std::string& fname, std::size_t size, void* data) {
+    std::ofstream file(fname, std::ios_base::out | std::ios_base::binary);
+    file.write(reinterpret_cast<char*>(data), size);
+    file.close();
+}
+
+void util::SaveImage(const std::string& fname, std::size_t size, void* data) {
+    auto ext = path(fname).extension().string();
+    if (ext == ".exr")
+        return;
+    else if (ext == ".hdr")
+        return;
+    else if (ext == ".bin")
+        DumpRawImage(fname, size, data);
+    else
+        ExitWithError("Unsupported format {}", ext);
+}
+
+bool util::SaveEXRImage(const std::string& fname, unsigned int width, unsigned int height,
+                        unsigned int numChannels, float* data) {
     EXRHeader header;
     InitEXRHeader(&header);
 
@@ -49,8 +102,8 @@ bool util::SaveEXRImage(const std::string& fname, unsigned int width, unsigned i
     for (unsigned int i = 0; i < width * height; i++) {
         images[0][i] = data[numChannels * i + 0];
         images[1][i] = data[numChannels * i + 1];
-        images[2][i] = 0;
-        //images[2][i] = data[4 * i + 2];
+        // images[2][i] = 0;
+        images[2][i] = data[numChannels * i + 2];
     }
 
     float* image_ptr[3];
@@ -115,8 +168,8 @@ std::optional<std::string> util::ReadFile(const std::string& filepath,
     return contents;
 }
 
-void util::ExitWithError(const std::string& message) {
-    std::cerr << message << "\n";
+void util::ExitWithErrorMsg(const std::string& message) {
+    std::cerr << "" << message << "\n";
     std::cin.get();
     exit(EXIT_FAILURE);
 }

@@ -1,15 +1,9 @@
-in vec2 fsTexCoords;
+#include <common.frag>
+
+in vec2 FsTexCoords;
 out vec2 FragColor;
 
-layout(location = 1) uniform uint numSamples;
-
-// Forward declarations
-float DistGGX(vec3 N, vec3 H, float roughness);
-vec3 SampleGGX(vec2 Xi, vec3 N, float roughness);
-vec2 Hammersley(uint i, uint N);
-float GeoSmith(float NdotV, float NdotL, float roughness);
-
-const float PI = 3.141592653589793;
+layout(location = 1) uniform uint NumSamples;
 
 vec3 BuildViewVector(float cosT) {
     return vec3(sqrt(1.0 - cosT * cosT), 0.0, cosT);
@@ -22,8 +16,8 @@ vec2 IntegrateBRDF(float NdotV, float roughness) {
     float I2 = 0.0;
 
     vec3 N = vec3(0.0, 0.0, 1.0);
-    for (uint i = 0u; i < numSamples; ++i) {
-        vec2 Xi = Hammersley(i, numSamples);
+    for (uint i = 0u; i < NumSamples; ++i) {
+        vec2 Xi = Hammersley(i, NumSamples);
         vec3 H = SampleGGX(Xi, N, roughness);
         vec3 L = normalize(2.0 * dot(V, H) * H - V);
 
@@ -47,12 +41,12 @@ vec2 IntegrateBRDF(float NdotV, float roughness) {
         }
     }
 
-    I1 /= float(numSamples);
-    I2 /= float(numSamples);
+    I1 /= float(NumSamples);
+    I2 /= float(NumSamples);
 
     return vec2(I1, I2);
 }
 
 void main() {
-    FragColor = IntegrateBRDF(fsTexCoords.x, fsTexCoords.y);
+    FragColor = IntegrateBRDF(FsTexCoords.x, FsTexCoords.y);
 }

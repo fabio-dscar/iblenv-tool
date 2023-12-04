@@ -1,5 +1,12 @@
 const float PI = 3.141592653589793;
 
+vec2 SphericalUVMap(vec3 w) {
+    vec2 uv = vec2(atan(w.z, w.x) / (2 * PI),
+                   asin(w.y) / PI);
+    uv += vec2(0.5, 0.5);
+    return vec2(1 - uv.x, 1 - uv.y);
+}
+
 // ----------------------------------------------------------------------------
 // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 // efficient VanDerCorpus calculation.
