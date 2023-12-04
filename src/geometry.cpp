@@ -1,115 +1,71 @@
-#include "glad/glad.h"
 #include <geometry.h>
+
+#include <glad/glad.h>
+#include <vector>
 
 using namespace ibl;
 
-Quad::~Quad() {
-    if (vbo != 0)
-        glDeleteBuffers(1, &vbo);
+static GLuint QuadVao, QuadVbo;
+static GLuint CubeVao, CubeVbo, CubeVboIdx;
 
-    if (vao != 0)
-        glDeleteVertexArrays(1, &vao);
-}
+void ibl::RenderQuad() {
+    if (QuadVao == 0) {
+        // Positions and uvs
+        const float quadVertices[] = {
+            -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 1.0f, 0.0f,
+        };
 
-void Quad::setup() {
-    // Positions and uvs
-    const float quadVertices[] = {
-        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 1.0f, 0.0f,
-    };
+        constexpr std::size_t vertexSize = 5 * sizeof(float);
 
-    constexpr std::size_t vertexSize = 5 * sizeof(float);
-
-    glCreateVertexArrays(1, &vao);
-    glCreateBuffers(1, &vbo);
-    glEnableVertexArrayAttrib(vao, 0);
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, vertexSize);
-    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-    glEnableVertexArrayAttrib(vao, 1);
-    glVertexArrayVertexBuffer(vao, 1, vbo, 3 * sizeof(float), vertexSize);
-    glVertexArrayAttribFormat(vao, 1, 2, GL_FLOAT, GL_FALSE, 0);
-    glNamedBufferStorage(vbo, sizeof(quadVertices), &quadVertices, 0);
-}
-
-void Quad::draw() const {
-    if (vao != 0) {
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glCreateVertexArrays(1, &QuadVao);
+        glCreateBuffers(1, &QuadVbo);
+        glEnableVertexArrayAttrib(QuadVao, 0);
+        glVertexArrayVertexBuffer(QuadVao, 0, QuadVbo, 0, vertexSize);
+        glVertexArrayAttribFormat(QuadVao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+        glEnableVertexArrayAttrib(QuadVao, 1);
+        glVertexArrayVertexBuffer(QuadVao, 1, QuadVbo, 3 * sizeof(float), vertexSize);
+        glVertexArrayAttribFormat(QuadVao, 1, 2, GL_FLOAT, GL_FALSE, 0);
+        glNamedBufferStorage(QuadVbo, sizeof(quadVertices), &quadVertices, 0);
     }
+
+    glBindVertexArray(QuadVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-Cube::~Cube() {
-    if (vbo != 0)
-        glDeleteBuffers(1, &vbo);
+void ibl::RenderCube() {
+    if (CubeVao == 0) {
+        float vertices[] = {-1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f, -1.0f,
+                            -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, 1.0f, 1.0f,
+                            -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f, 1.0f};
 
-    if (vao != 0)
-        glDeleteVertexArrays(1, &vao);
+        unsigned int indices[] = {0, 1, 2, 1, 0, 3, 4, 5, 7, 7, 6, 4, 6, 3, 0, 0, 4, 6,
+                                  7, 2, 1, 2, 7, 5, 0, 2, 5, 5, 4, 0, 3, 7, 1, 7, 3, 6};
+
+        glCreateVertexArrays(1, &CubeVao);
+        glCreateBuffers(1, &CubeVbo);
+        glEnableVertexArrayAttrib(CubeVao, 0);
+        glVertexArrayVertexBuffer(CubeVao, 0, CubeVbo, 0, 3 * sizeof(float));
+        glVertexArrayAttribFormat(CubeVao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+        glNamedBufferStorage(CubeVbo, sizeof(vertices), &vertices, 0);
+        glCreateBuffers(1, &CubeVboIdx);
+        glNamedBufferStorage(CubeVboIdx, sizeof(indices), &indices, 0);
+        glVertexArrayElementBuffer(CubeVao, CubeVboIdx);
+    }
+
+    glBindVertexArray(CubeVao);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 }
 
-void Cube::setup() {
-    float vertices[] = {
-        // back face
-        -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
-        1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f,   // top-right
-        1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f,  // bottom-right
-        1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f,   // top-right
-        -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
-        -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f,  // top-left
-                                                            // front face
-        -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,   // bottom-left
-        1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f,    // bottom-right
-        1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,     // top-right
-        1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,     // top-right
-        -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,    // top-left
-        -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,   // bottom-left
-                                                            // left face
-        -1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,   // top-right
-        -1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  // top-left
-        -1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f, // bottom-left
-        -1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f, // bottom-left
-        -1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // bottom-right
-        -1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,   // top-right
-        // right face
-        1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,     // top-left
-        1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,   // bottom-right
-        1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,    // top-right
-        1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,   // bottom-right
-        1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,     // top-left
-        1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,    // bottom-left
-                                                            // bottom face
-        -1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, // top-right
-        1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f,  // top-left
-        1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,   // bottom-left
-        1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,   // bottom-left
-        -1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f,  // bottom-right
-        -1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, // top-right
-        // top face
-        -1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, // top-left
-        1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,   // bottom-right
-        1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f,  // top-right
-        1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,   // bottom-right
-        -1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, // top-left
-        -1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f   // bottom-left
-    };
+void ibl::CleanupGeometry() {
+    if (QuadVao != 0) {
+        glDeleteVertexArrays(1, &QuadVao);
+        glDeleteBuffers(1, &QuadVbo);
+    }
 
-    constexpr std::size_t vertexSize = 8 * sizeof(float);
-
-    glCreateVertexArrays(1, &vao);
-    glCreateBuffers(1, &vbo);
-    glEnableVertexArrayAttrib(vao, 0);
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, vertexSize);
-    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-    glEnableVertexArrayAttrib(vao, 1);
-    glVertexArrayVertexBuffer(vao, 1, vbo, 3 * sizeof(float), vertexSize);
-    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
-    glEnableVertexArrayAttrib(vao, 2);
-    glVertexArrayVertexBuffer(vao, 2, vbo, 6 * sizeof(float), vertexSize);
-    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, 0);
-    glNamedBufferStorage(vbo, sizeof(vertices), &vertices, 0);
-}
-void Cube::draw() const {
-    if (vao != 0) {
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+    if (CubeVao != 0) {
+        glDeleteVertexArrays(1, &CubeVao);
+        glDeleteBuffers(1, &CubeVbo);
+        glDeleteBuffers(1, &CubeVboIdx);
     }
 }
