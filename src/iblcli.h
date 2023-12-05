@@ -6,6 +6,8 @@
 
 namespace ibl {
 
+class Texture;
+
 enum class Mode { UNKNOWN, BRDF, IRRADIANCE, CONVERT };
 
 struct ProgOptions {
@@ -15,14 +17,16 @@ struct ProgOptions {
     unsigned int numSamples;
     int texSize;
     bool multiScattering;
+    bool divideLambertConstant;
+    bool usePrefilteredIS;
 };
 
 ProgOptions ParseArgs(int argc, char* argv[]);
 
 void InitOpenGL();
 void ComputeBRDF(const ProgOptions& opts);
+void ComputeIrradiance(const ProgOptions& opts, const Texture& envMap);
 void ConvertToCubemap(const ProgOptions& opts);
-void CalculateIrradiance(const ProgOptions& opts);
 void Cleanup();
 
 inline void ExecuteJob(const ProgOptions& opts) {

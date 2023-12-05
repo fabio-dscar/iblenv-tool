@@ -21,10 +21,10 @@ void Shader::handleIncludes() {
         if (std::find(processed.begin(), processed.end(), file) != processed.end())
             ExitWithError("Recursively including '{}' at '{}'.", file, name);
 
-        auto filePath = shaderFolder / file;
+        auto filePath = ShaderFolder / file;
         auto src = util::ReadFile(filePath, std::ios_base::in);
         if (!src)
-            ExitWithError("Couldn't find included file '{}' in '{}'", file, name);
+            ExitWithError("Couldn't open included file '{}' in '{}'", file, name);
 
         source.replace(smatch.position(), smatch.length(), src.value());
 
@@ -75,8 +75,6 @@ void Program::link() {
     if (res != GL_TRUE) {
         for (GLuint sid : srcHandles)
             glDetachShader(handle, sid);
-
-        glDeleteProgram(handle);
 
         std::string message = GetProgramError(handle);
         ExitWithErrorMsg(message);
@@ -129,8 +127,8 @@ Shader ibl::LoadShaderFile(const std::string& fileName) {
 }
 
 Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
-    auto filePath = shaderFolder / fileName;
-    auto source = util::ReadFile(shaderFolder / fileName, std::ios_base::in);
+    auto filePath = ShaderFolder / fileName;
+    auto source = util::ReadFile(ShaderFolder / fileName, std::ios_base::in);
     if (!source.has_value())
         ExitWithError("Couldn't load shader file {}", filePath.string());
 

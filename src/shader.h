@@ -19,7 +19,7 @@ enum ShaderType {
 };
 
 static const std::string VerDirective = "#version 460 core\n\n";
-static const std::filesystem::path shaderFolder = "./glsl";
+static const std::filesystem::path ShaderFolder = "./glsl";
 
 class Shader {
 public:

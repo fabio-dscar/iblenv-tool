@@ -9,6 +9,13 @@ namespace ibl {
 class Framebuffer {
 public:
     Framebuffer() { glCreateFramebuffers(1, &handle); }
+    ~Framebuffer() {
+        if (depthBuff)
+            glDeleteRenderbuffers(1, &depthBuff);
+
+        if (handle != 0)
+            glDeleteFramebuffers(1, &handle);
+    }
 
     void addDepthBuffer(unsigned int width, unsigned int height) {
         glCreateRenderbuffers(1, &depthBuff);
@@ -26,9 +33,7 @@ public:
         glNamedFramebufferTextureLayer(handle, attachment, tex.handle, 0, layer);
     }
 
-    void bind() {
-         glBindFramebuffer(GL_FRAMEBUFFER, handle);
-    }
+    void bind() { glBindFramebuffer(GL_FRAMEBUFFER, handle); }
 
     GLuint handle;
     GLuint depthBuff;
