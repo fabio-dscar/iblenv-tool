@@ -1,47 +1,52 @@
 #include <common.frag>
 
-out vec4 fragColor;
-in vec3 worldPos;
+out vec4 FragColor;
+in vec3 WorldPos;
 
-layout(location = 1) uniform uint numSamples;
-layout(location = 2) uniform samplerCube envMap;
+layout(location = 2) uniform samplerCubeArray EnvMap;
+layout(location = 3) uniform int NumSamples;
 
-vec3 SampleHemisphere(vec2 Xi, vec3 N) {
-    float phi = 2 * PI * Xi.x;
-    float cosTheta = Xi.y;
-    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+const float CosHemisPdf = 1.0 / PI;  // CosTheta cancels with the one in the sum
 
-    vec3 H;
-    H.x = cos(phi) * sinTheta;
-    H.y = sin(phi) * sinTheta;
-    H.z = cosTheta;
+vec3 EnvironmentIrradiance(vec3 N) {
+    vec3 E_d = vec3(0.0);
 
-    // From tangent-space to world-space
-    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-    vec3 tangent = normalize(cross(up, N));
-    vec3 bitangent = cross(N, tangent);
+#ifdef PREFILTERED_IS
+    // Pre-filtered importance sampling constants
+    ivec3 cubeSize = textureSize(EnvMap, 0);
+    float cubeSize2 = cubeSize.x * cubeSize.x;
+    float Omega_p = 4.0 * PI / (6.0 * cubeSize2);
+    float K = 4.0;
+#endif
 
-    vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
-    return normalize(sampleVec);
+    for (int i = 0; i < NumSamples; ++i) {
+        vec2 Xi = Hammersley(i, NumSamples);
+        vec3 Wi = SampleCosWeightedHemis(Xi, N);
+
+        float NdotWi = clamp(dot(N, Wi), 0.0, 1.0);
+
+        if (NdotWi > 0) {
+#ifdef PREFILTERED_IS
+            float Pdf = NdotWi / PI; // Use pdf of IS we're performing
+            float Omega_s = 1.0 / (float(NumSamples) * Pdf);
+            float MipLevel = 0.5 * log2(K * Omega_s / Omega_p);
+#else
+            float MipLevel = 0;
+#endif
+            vec3 Lenv = textureLod(EnvMap, vec4(Wi, 0), MipLevel).rgb;
+            E_d += Lenv / CosHemisPdf;
+        }
+    }
+
+#ifdef DIVIDED_PI
+    return E_d / (PI * NumSamples);
+#else
+    return E_d / NumSamples;
+#endif
 }
 
 void main() {
-    vec3 N = normalize(worldPos);
+    vec3 Normal = normalize(WorldPos);
 
-    vec3 irradiance = vec3(0.0);
-
-    ivec2 cubeSize = textureSize(envMap, 0);
-    float pdf = 2 * PI / (6 * cubeSize.x * cubeSize.x);
-
-    for (uint i = 0u; i < numSamples; ++i) {
-        vec2 Xi = Hammersley(i, numSamples);
-        vec3 S = SampleHemisphere(Xi, N);
-        // float pdf = 1.0 / (2.0 * PI);
-
-        float NdotS = clamp(dot(N, S), 0.0, 1.0);
-        if (NdotS > 0)
-            irradiance += texture(envMap, sampleVec).rgb * NdotS * pdf;
-    }
-
-    fragColor = vec4(irradiance, 1.0);
+    FragColor = vec4(EnvironmentIrradiance(Normal), 1.0);
 }

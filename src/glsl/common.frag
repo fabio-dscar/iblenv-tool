@@ -1,12 +1,5 @@
 const float PI = 3.141592653589793;
 
-vec2 SphericalUVMap(vec3 w) {
-    vec2 uv = vec2(atan(w.z, w.x) / (2 * PI),
-                   asin(w.y) / PI);
-    uv += vec2(0.5, 0.5);
-    return vec2(1 - uv.x, 1 - uv.y);
-}
-
 // ----------------------------------------------------------------------------
 // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 // efficient VanDerCorpus calculation.
@@ -23,6 +16,35 @@ vec2 Hammersley(uint i, uint N) {
     return vec2(float(i) / float(N), RadicalInverseVdC(i));
 }
 
+vec2 SphericalUVMap(vec3 w) {
+    vec2 uv = vec2(atan(w.z, w.x) / (2 * PI),
+                   asin(w.y) / PI);
+    uv += vec2(0.5, 0.5);
+
+    return vec2(1 - uv.x, 1 - uv.y);
+}
+
+// Build basis from N and convert Wi
+vec3 TangentToWorld(vec3 Wi, vec3 N) {
+    vec3 Up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 Tan = normalize(cross(Up, N));
+    vec3 Bitan = cross(N, Tan);
+
+    vec3 WorldVec = Tan * Wi.x + Bitan * Wi.y + N * Wi.z;
+
+    return normalize(WorldVec);
+}
+
+vec3 SampleCosWeightedHemis(vec2 Xi, vec3 N) {
+    float phi = 2 * PI * Xi.x;
+    float cosTheta = sqrt(Xi.y);
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 Wi = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    return TangentToWorld(Wi, N);
+}
+
 vec3 SampleGGX(vec2 Xi, vec3 N, float rough) {
     float a = rough * rough;
 
@@ -30,18 +52,9 @@ vec3 SampleGGX(vec2 Xi, vec3 N, float rough) {
     float cosTheta = sqrt((1.0 - Xi.y) / (Xi.y * (a * a - 1.0) + 1));
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
-    vec3 H;
-    H.x = cos(phi) * sinTheta;
-    H.y = sin(phi) * sinTheta;
-    H.z = cosTheta;
+    vec3 H = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 
-    // From tangent-space to world-space
-    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-    vec3 tangent = normalize(cross(up, N));
-    vec3 bitangent = cross(N, tangent);
-
-    vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
-    return normalize(sampleVec);
+    return TangentToWorld(H, N);
 }
 
 float DistGGX(vec3 N, vec3 H, float rough) {
@@ -50,8 +63,8 @@ float DistGGX(vec3 N, vec3 H, float rough) {
 
     float NdotH = max(dot(N, H), 0.0);
     float NdotH2 = NdotH * NdotH;
-
     float denom = NdotH2 * (a2 - 1.0) + 1.0;
+    
     return a2 / (PI * denom * denom);
 }
 
