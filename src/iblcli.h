@@ -21,13 +21,27 @@ struct ProgOptions {
     bool usePrefilteredIS;
 };
 
+enum UniformLocs {
+    Projection = 0,
+    View = 1,
+    Model = 2,
+    EnvMap = 3,
+    NumSamples = 4,
+    Roughness = 5,
+};
+
 ProgOptions ParseArgs(int argc, char* argv[]);
 
 void InitOpenGL();
 void ComputeBRDF(const ProgOptions& opts);
-void ComputeIrradiance(const ProgOptions& opts, const Texture& envMap);
+void ComputeIrradiance(const ProgOptions& opts);
+void ComputeConvolution(const ProgOptions& opts);
 void ConvertToCubemap(const ProgOptions& opts);
 void Cleanup();
+
+std::unique_ptr<Texture> SphericalProjToCubemap(const std::string& filePath, int cubeSize,
+                                                float degs = 0.0f,
+                                                bool swapHandedness = false);
 
 inline void ExecuteJob(const ProgOptions& opts) {
     if (opts.mode == Mode::UNKNOWN)
@@ -39,6 +53,8 @@ inline void ExecuteJob(const ProgOptions& opts) {
         ComputeBRDF(opts);
     else if (opts.mode == Mode::CONVERT)
         ConvertToCubemap(opts);
+    else if (opts.mode == Mode::IRRADIANCE)
+        ComputeConvolution(opts);
 
     Cleanup();
 }

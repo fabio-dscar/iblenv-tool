@@ -3,9 +3,9 @@
 in vec3 WorldPos;
 out vec4 FragColor;
 
-layout(location = 2) uniform samplerCubeArray EnvMap;
-layout(location = 3) uniform int NumSamples;
-layout(location = 4) uniform float Roughness;
+layout(location = 3) uniform samplerCube EnvMap;
+layout(location = 4) uniform int NumSamples;
+layout(location = 5) uniform float Roughness;
 
 vec3 EnvironmentConvolution(vec3 N) {
     vec3 V = N; // Simplification
@@ -15,7 +15,7 @@ vec3 EnvironmentConvolution(vec3 N) {
 
 #ifdef PREFILTERED_IS
     // Pre-filtered importance sampling constants
-    ivec3 CubeSize = textureSize(EnvMap, 0);
+    ivec2 CubeSize = textureSize(EnvMap, 0);
     float CubeSize2 = CubeSize.x * CubeSize.x;
     float Omega_p = 4.0 * PI / (6.0 * CubeSize2);
     float K = 4.0;
@@ -43,7 +43,7 @@ vec3 EnvironmentConvolution(vec3 N) {
 #else
             float MipLevel = 0.0;
 #endif
-            vec3 Lenv = textureLod(EnvMap, vec4(L, 0), MipLevel).rgb;
+            vec3 Lenv = textureLod(EnvMap, L, MipLevel).rgb;
             Lsum += Lenv * G * NdotL;
             Weight += NdotL;
         }

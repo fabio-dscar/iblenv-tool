@@ -3,8 +3,8 @@
 out vec4 FragColor;
 in vec3 WorldPos;
 
-layout(location = 2) uniform samplerCubeArray EnvMap;
-layout(location = 3) uniform int NumSamples;
+layout(location = 3) uniform samplerCube EnvMap;
+layout(location = 4) uniform int NumSamples;
 
 const float CosHemisPdf = 1.0 / PI;  // CosTheta cancels with the one in the sum
 
@@ -13,7 +13,7 @@ vec3 EnvironmentIrradiance(vec3 N) {
 
 #ifdef PREFILTERED_IS
     // Pre-filtered importance sampling constants
-    ivec3 cubeSize = textureSize(EnvMap, 0);
+    ivec2 cubeSize = textureSize(EnvMap, 0);
     float cubeSize2 = cubeSize.x * cubeSize.x;
     float Omega_p = 4.0 * PI / (6.0 * cubeSize2);
     float K = 4.0;
@@ -33,7 +33,7 @@ vec3 EnvironmentIrradiance(vec3 N) {
 #else
             float MipLevel = 0;
 #endif
-            vec3 Lenv = textureLod(EnvMap, vec4(Wi, 0), MipLevel).rgb;
+            vec3 Lenv = textureLod(EnvMap, Wi, MipLevel).rgb;
             E_d += Lenv / CosHemisPdf;
         }
     }

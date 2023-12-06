@@ -5,6 +5,14 @@
 #include <map>
 #include <memory>
 #include <cmath>
+#include <vector>
+
+#include <glm/glm.hpp>
+#include <glm/matrix.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/common.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace ibl {
 
@@ -16,6 +24,14 @@ enum CubemapFace {
     CUBE_Z_POS = 4,
     CUBE_Z_NEG = 5
 };
+
+static const std::vector CubeMapViews{
+    glm::lookAt(glm::vec3{0}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
+    glm::lookAt(glm::vec3{0}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
+    glm::lookAt(glm::vec3{0}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}),
+    glm::lookAt(glm::vec3{0}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}),
+    glm::lookAt(glm::vec3{0}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}),
+    glm::lookAt(glm::vec3{0}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f})};
 
 struct SamplerOpts {
     GLuint wrapS = GL_CLAMP_TO_EDGE;
@@ -47,6 +63,8 @@ public:
 
     ~Texture();
 
+    void bind() const;
+
     void generateMipmaps() const;
     void setParam(GLenum param, GLint val) const;
 
@@ -55,7 +73,7 @@ public:
 
     std::unique_ptr<std::byte[]> getData(int level = 0) const;
     std::unique_ptr<std::byte[]> getData(CubemapFace face, int level = 0) const;
-    
+
     std::size_t sizeBytes(unsigned int level = 0) const;
     std::size_t sizeBytesFace(unsigned int level = 0) const;
 
@@ -73,4 +91,4 @@ inline int MaxMipLevel(int width, int height = 0, int depth = 0) {
 
 } // namespace ibl
 
-#endif // __TEXTURE_H__
+#endif // __IBL_TEXTURE_H__

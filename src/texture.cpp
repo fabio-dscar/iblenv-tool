@@ -36,18 +36,24 @@ Texture::~Texture() {
         glDeleteTextures(1, &handle);
 }
 
+void Texture::bind() const {
+    glBindTexture(target, handle);
+}
+
 std::unique_ptr<std::byte[]> Texture::getData(int level) const {
-    auto size = sizeBytes();
+    auto size = sizeBytes(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
     glGetTextureImage(handle, level, info->format, info->type, size, dataPtr.get());
     return dataPtr;
 }
 
 std::unique_ptr<std::byte[]> Texture::getData(CubemapFace face, int level) const {
-    auto size = sizeBytes();
+    auto size = sizeBytesFace(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
-    glGetTextureImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level, info->format,
-                      info->type, size, dataPtr.get());
+    bind();
+    glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level, info->format, info->type,
+                  dataPtr.get());
+    glBindTexture(target, 0);
     return dataPtr;
 }
 

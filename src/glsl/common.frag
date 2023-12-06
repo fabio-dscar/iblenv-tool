@@ -21,7 +21,7 @@ vec2 SphericalUVMap(vec3 w) {
                    asin(w.y) / PI);
     uv += vec2(0.5, 0.5);
 
-    return vec2(1 - uv.x, 1 - uv.y);
+    return vec2(uv.x, 1 - uv.y);
 }
 
 // Build basis from N and convert Wi

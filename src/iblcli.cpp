@@ -1,3 +1,4 @@
+#include <glm/ext/matrix_transform.hpp>
 #include <iblcli.h>
 
 #include <glad/glad.h>
@@ -50,10 +51,12 @@ ProgOptions BuildOptions(argparse::ArgumentParser& p) {
 
     auto& irradianceMode = p.at<argparse::ArgumentParser>("irradiance");
     if (p.is_subcommand_used(irradianceMode)) {
-        opts.mode = Mode::CONVERT;
+        opts.mode = Mode::IRRADIANCE;
         opts.texSize = irradianceMode.get<int>("-s");
         opts.inFile = irradianceMode.get("-i");
         opts.outFile = irradianceMode.get("-o");
+        opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
+        opts.numSamples = irradianceMode.get<unsigned int>("--spp");
         return opts;
     }
 
@@ -65,7 +68,7 @@ ProgOptions ibl::ParseArgs(int argc, char* argv[]) {
     program.add_description("ibl tool");
 
     argparse::ArgumentParser brdfCmd("brdf");
-    brdfCmd.add_description("");
+    brdfCmd.add_description("Computes microfacet brdf into a lookup table.");
     brdfCmd.add_argument("--spp")
         .help("Specifies the number of samples per pixel.")
         .nargs(1)
@@ -123,6 +126,17 @@ ProgOptions ibl::ParseArgs(int argc, char* argv[]) {
         .help("Output filename.")
         .nargs(1)
         .default_value("");
+
+    irradiance.add_argument("--no-prefiltered")
+        .help("Disables prefiltered importance sampling.")
+        .nargs(0)
+        .default_value(false);
+
+    irradiance.add_argument("--spp")
+        .help("Specifies the number of samples per pixel.")
+        .nargs(1)
+        .default_value(2048u)
+        .scan<'u', unsigned int>();
 
     program.add_subparser(irradiance);
 
@@ -187,7 +201,7 @@ void ibl::InitOpenGL() {
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    glDisable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
 void ibl::Cleanup() {
@@ -227,62 +241,62 @@ void ibl::ComputeBRDF(const ProgOptions& opts) {
     //                    reinterpret_cast<float*>(data.get()));
 }
 
-void ibl::ConvertToCubemap(const ProgOptions& opts) {
-    int cubeSize = opts.texSize;
+glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
+    auto I = glm::identity<glm::mat4>();
+    return glm::scale(I, scale) * glm::rotate(I, glm::radians(degs), {0, 1, 0});
+}
+
+std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath,
+                                                     int cubeSize, float degs,
+                                                     bool swapHand) {
 
     auto shaders = std::vector{"convert.vert"s, "convert.frag"s};
     auto program = CompileAndLinkProgram("convert", shaders);
 
-    auto img = util::LoadImage(opts.inFile);
+    auto img = util::LoadImage(filePath);
     Texture rectMap{GL_TEXTURE_2D, GL_RGB16F, img.width, img.height, {}};
     rectMap.uploadData(img.data.get());
 
     Framebuffer fb{};
-    fb.addDepthBuffer(opts.texSize, opts.texSize);
+    fb.addDepthBuffer(cubeSize, cubeSize);
     fb.bind();
 
-    Texture cubemap{GL_TEXTURE_CUBE_MAP_ARRAY,
-                    GL_RGB16F,
-                    opts.texSize,
-                    opts.texSize,
-                    {.minFilter = GL_LINEAR_MIPMAP_LINEAR},
-                    6, // in texture cube array, layers = num faces
-                    MaxMipLevel(opts.texSize)};
+    auto cubemap = std::make_unique<Texture>(
+        GL_TEXTURE_CUBE_MAP, GL_RGB16F, cubeSize, cubeSize,
+        SamplerOpts{.minFilter = GL_LINEAR_MIPMAP_LINEAR}, 0, MaxMipLevel(cubeSize));
 
-    glm::vec3 origin{0, 0, 0};
-    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
-    glm::mat4 captureViews[] = {
-        glm::lookAt(origin, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))};
+    auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
+    auto modelMatrix = ScaleAndRotateY({1, 1, swapHand ? 1 : -1}, degs);
 
-    glViewport(0, 0, opts.texSize, opts.texSize);
+    glViewport(0, 0, cubeSize, cubeSize);
     glUseProgram(program->id());
-    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(captureProjection));
-    glUniform1i(2, 0);
+    glUniformMatrix4fv(Projection, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+    glUniform1i(EnvMap, 0);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, rectMap.handle);
-    glCullFace(GL_FRONT); // Skybox draws inner face
+    rectMap.bind();
+    glCullFace(swapHand ? GL_FRONT : GL_BACK);
     for (int face = 0; face < 6; ++face) {
-        glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(captureViews[face]));
-        fb.addTextureLayer(GL_COLOR_ATTACHMENT0, cubemap, face);
+        glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(CubeMapViews[face]));
+        fb.addTextureLayer(GL_COLOR_ATTACHMENT0, *cubemap, face);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         RenderCube();
     }
-    glCullFace(GL_BACK);
+    glCullFace(swapHand ? GL_BACK : GL_FRONT);
 
-    ComputeIrradiance(opts, cubemap);
+    return cubemap;
+}
 
-    return;
+void ibl::ConvertToCubemap(const ProgOptions& opts) {
+    int cubeSize = opts.texSize;
+
+    auto cubemap = SphericalProjToCubemap(opts.inFile, opts.texSize);
 
     std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
                                                 {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
 
-    auto dataOut = cubemap.getData();
+    auto dataOut = cubemap->getData();
     for (int i = 0; i < 6; i++)
         util::SaveEXRImage(std::format("{}.exr", cubeMap[i]), cubeSize, cubeSize, 3,
                            (float*)(&dataOut.get()[sizeof(float) * i * 3 * cubeSize *
@@ -325,14 +339,17 @@ void ibl::ConvertToCubemap(const ProgOptions& opts) {
                        (float*)superOut.get());
 }
 
-void ibl::ComputeIrradiance(const ProgOptions& opts, const Texture& envMap) {
+void ibl::ComputeIrradiance(const ProgOptions& opts) {
+    auto envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
+    envMap->generateMipmaps();
+
     auto defines = std::vector<std::string>{};
     if (opts.divideLambertConstant)
-        defines.emplace_back("DIVIDE_PI");
-    // if (opts.usePrefilteredIS)
-    defines.emplace_back("PREFILTERED_IS");
+        defines.emplace_back("DIVIDED_PI");
+    if (opts.usePrefilteredIS)
+        defines.emplace_back("PREFILTERED_IS");
 
-    auto shaders = std::vector{"convert.vert"s, "convolution.frag"s};
+    auto shaders = std::vector{"convert.vert"s, "irradiance.frag"s};
     auto program = CompileAndLinkProgram("irradiance", shaders, defines);
 
     // Load input cubemap 'envmap'
@@ -344,35 +361,26 @@ void ibl::ComputeIrradiance(const ProgOptions& opts, const Texture& envMap) {
     Texture irradiance{
         GL_TEXTURE_CUBE_MAP_ARRAY, GL_RGB16F, opts.texSize, opts.texSize, {}, 6};
 
-    glm::vec3 origin{0, 0, 0};
-    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
-    glm::mat4 captureViews[] = {
-        glm::lookAt(origin, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(origin, glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))};
+    auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
+    auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
 
-    envMap.generateMipmaps();
-    
     glUseProgram(program->id());
-    glUniform1i(2, 0);
-    glUniform1i(3, 2048);
-    glUniform1f(4, 0.1f);
-    glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(captureProjection));
+    glUniform1i(EnvMap, 0);
+    glUniform1i(NumSamples, opts.numSamples);
+    glUniformMatrix4fv(Projection, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(modelMatrix));
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, envMap.handle);
+    envMap->bind();
     glViewport(0, 0, opts.texSize, opts.texSize);
-    glCullFace(GL_FRONT);
+    glDisable(GL_CULL_FACE);
     for (int face = 0; face < 6; ++face) {
-        glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(captureViews[face]));
+        glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(CubeMapViews[face]));
         fb.addTextureLayer(GL_COLOR_ATTACHMENT0, irradiance, face);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         RenderCube();
     }
-    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
 
     // Extract irradiance
     std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
@@ -420,4 +428,69 @@ void ibl::ComputeIrradiance(const ProgOptions& opts, const Texture& envMap) {
 
     util::SaveEXRImage(std::format("mega.exr"), 4 * opts.texSize, 3 * opts.texSize, 3,
                        (float*)superOut.get());
+}
+
+void ibl::ComputeConvolution(const ProgOptions& opts) {
+    auto maxMipLevels = 9;
+
+    auto envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
+    envMap->generateMipmaps();
+
+    auto defines = std::vector<std::string>{};
+    if (opts.usePrefilteredIS)
+        defines.emplace_back("PREFILTERED_IS");
+
+    auto shaders = std::vector{"convert.vert"s, "convolution.frag"s};
+    auto program = CompileAndLinkProgram("convolution", shaders, defines);
+
+    // Load input cubemap 'envmap'
+
+    Framebuffer fb{};
+    fb.addDepthBuffer(opts.texSize, opts.texSize);
+    fb.bind();
+
+    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB16F, opts.texSize, opts.texSize, {}, 6,
+                    maxMipLevels};
+    convMap.generateMipmaps();
+
+    auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
+    auto modelMatrix = ScaleAndRotateY({1, 1, -1}, 0);
+
+    glUseProgram(program->id());
+    glUniform1i(EnvMap, 0);
+    glUniform1i(NumSamples, opts.numSamples);
+    glUniformMatrix4fv(Projection, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+    glActiveTexture(GL_TEXTURE0);
+    envMap->bind();
+    glDisable(GL_CULL_FACE);
+    for (int mip = 0; mip < maxMipLevels; ++mip) {
+        int mipSize = opts.texSize * std::pow(0.5, mip);
+        glViewport(0, 0, mipSize, mipSize);
+        fb.resize(mipSize, mipSize);
+
+        float rough = (float)mip / (float)(maxMipLevels - 1);
+        glUniform1f(Roughness, rough);
+
+        for (int face = 0; face < 6; ++face) {
+            glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(CubeMapViews[face]));
+            fb.addTextureLayer(GL_COLOR_ATTACHMENT0, convMap, face, mip);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            RenderCube();
+        }
+    }
+    glEnable(GL_CULL_FACE);
+
+    std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
+                                                {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
+
+    for (int mip = 0; mip < maxMipLevels; ++mip) {
+        for (int face = 0; face < 6; ++face) {
+            auto data = convMap.getData((CubemapFace)face, mip);
+            auto mipSize = std::max(convMap.width >> mip, 1);
+            util::SaveEXRImage(std::format("conv/{}_{}.exr", cubeMap[face], mip), mipSize,
+                               mipSize, 3, (float*)data.get());
+        }
+    }
 }

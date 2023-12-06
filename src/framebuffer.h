@@ -25,12 +25,16 @@ public:
                                        depthBuff);
     }
 
-    void addTextureBuffer(GLenum attachment, const Texture& tex) {
-        glNamedFramebufferTexture(handle, attachment, tex.handle, 0);
+    void resize(int width, int height) {
+        glNamedRenderbufferStorage(depthBuff, GL_DEPTH_COMPONENT24, width, height);
     }
 
-    void addTextureLayer(GLenum attachment, const Texture& tex, int layer) {
-        glNamedFramebufferTextureLayer(handle, attachment, tex.handle, 0, layer);
+    void addTextureBuffer(GLenum attachment, const Texture& tex, int lvl = 0) {
+        glNamedFramebufferTexture(handle, attachment, tex.handle, lvl);
+    }
+
+    void addTextureLayer(GLenum attach, const Texture& tex, int layer, int lvl = 0) {
+        glNamedFramebufferTextureLayer(handle, attach, tex.handle, lvl, layer);
     }
 
     void bind() { glBindFramebuffer(GL_FRAMEBUFFER, handle); }
