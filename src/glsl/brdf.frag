@@ -44,5 +44,9 @@ vec2 IntegrateBRDF(float NdotV, float rough) {
 }
 
 void main() {
+#ifdef FLIP_V
+    FragColor = IntegrateBRDF(FsTexCoords.x, 1 - FsTexCoords.y);
+#else
     FragColor = IntegrateBRDF(FsTexCoords.x, FsTexCoords.y);
+#endif
 }
