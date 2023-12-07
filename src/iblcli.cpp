@@ -1,4 +1,3 @@
-#include <glm/ext/matrix_transform.hpp>
 #include <iblcli.h>
 
 #include <glad/glad.h>
@@ -10,13 +9,13 @@
 #include <util.h>
 #include <format>
 #include <geometry.h>
-#include <argparse/argparse.hpp>
 
 #include <glm/glm.hpp>
 #include <glm/matrix.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/common.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <texture.h>
@@ -26,141 +25,6 @@ using namespace ibl;
 using namespace std::literals;
 
 GLFWwindow* window;
-
-ProgOptions BuildOptions(argparse::ArgumentParser& p) {
-    ProgOptions opts;
-
-    auto& brdfMode = p.at<argparse::ArgumentParser>("brdf");
-    if (p.is_subcommand_used(brdfMode)) {
-        opts.mode = Mode::BRDF;
-        opts.numSamples = brdfMode.get<unsigned int>("--spp");
-        opts.texSize = brdfMode.get<int>("-s");
-        opts.multiScattering = brdfMode.get<bool>("--ms");
-        opts.outFile = brdfMode.get("-o");
-        return opts;
-    }
-
-    auto& convertMode = p.at<argparse::ArgumentParser>("convert");
-    if (p.is_subcommand_used(convertMode)) {
-        opts.mode = Mode::CONVERT;
-        opts.texSize = convertMode.get<int>("-s");
-        opts.inFile = convertMode.get("-i");
-        opts.outFile = convertMode.get("-o");
-        return opts;
-    }
-
-    auto& irradianceMode = p.at<argparse::ArgumentParser>("irradiance");
-    if (p.is_subcommand_used(irradianceMode)) {
-        opts.mode = Mode::IRRADIANCE;
-        opts.texSize = irradianceMode.get<int>("-s");
-        opts.inFile = irradianceMode.get("-i");
-        opts.outFile = irradianceMode.get("-o");
-        opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
-        opts.numSamples = irradianceMode.get<unsigned int>("--spp");
-        return opts;
-    }
-
-    return opts;
-}
-
-ProgOptions ibl::ParseArgs(int argc, char* argv[]) {
-    argparse::ArgumentParser program("iblenv", "1.0");
-    program.add_description("ibl tool");
-
-    argparse::ArgumentParser brdfCmd("brdf");
-    brdfCmd.add_description("Computes microfacet brdf into a lookup table.");
-    brdfCmd.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
-        .nargs(1)
-        .default_value(4096u)
-        .scan<'u', unsigned int>();
-
-    brdfCmd.add_argument("-s", "--texsize")
-        .help("Specifies the number of samples per pixel.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
-
-    brdfCmd.add_argument("--ms")
-        .help("Apply multiscattering precomputation.")
-        .nargs(0)
-        .implicit_value(true)
-        .default_value(false);
-
-    brdfCmd.add_argument("-o", "--outFile")
-        .help("Filename for output file. By default dumps the bytes raw out of OpenGL "
-              "('bin' extension).")
-        .nargs(1)
-        .default_value("brdf.bin");
-
-    program.add_subparser(brdfCmd);
-
-    argparse::ArgumentParser convert("convert");
-    convert.add_description("");
-    convert.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
-
-    convert.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    convert.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
-
-    program.add_subparser(convert);
-
-    argparse::ArgumentParser irradiance("irradiance");
-    irradiance.add_description("");
-    irradiance.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
-
-    irradiance.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    irradiance.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
-
-    irradiance.add_argument("--no-prefiltered")
-        .help("Disables prefiltered importance sampling.")
-        .nargs(0)
-        .default_value(false);
-
-    irradiance.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
-        .nargs(1)
-        .default_value(2048u)
-        .scan<'u', unsigned int>();
-
-    program.add_subparser(irradiance);
-
-    argparse::ArgumentParser convolution("convolution");
-    convolution.add_description("");
-    convolution.add_argument("-l", "--levels")
-        .help("Specifies the number of levels in the output cubemap.")
-        .nargs(1)
-        .default_value(9)
-        .scan<'i', int>();
-
-    convolution.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    convolution.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
-
-    program.add_subparser(convolution);
-
-    program.parse_args(argc, argv);
-
-    return BuildOptions(program);
-}
 
 void ibl::InitOpenGL() {
     if (!glfwInit())
@@ -213,18 +77,21 @@ void ibl::Cleanup() {
     }
 }
 
-void ibl::ComputeBRDF(const ProgOptions& opts) {
+void ibl::ComputeBRDF(const CliOptions& opts) {
     auto defines = std::vector<std::string>{};
     if (opts.multiScattering)
         defines.emplace_back("MULTISCATTERING");
+    if (opts.flipUv)
+        defines.emplace_back("FLIP_V");
 
     auto shaders = std::vector{"brdf.vert"s, "brdf.frag"s};
     auto program = CompileAndLinkProgram("brdf", shaders, defines);
 
-    Texture brdfLUT{GL_TEXTURE_2D, GL_RG16F, opts.texSize};
+    GLenum intFormat = opts.useHalfFloat ? GL_RG16F : GL_RG32F;
+    Texture brdfLUT{GL_TEXTURE_2D, intFormat, opts.texSize};
 
     Framebuffer fb{};
-    fb.addDepthBuffer(opts.texSize, opts.texSize);
+    fb.addDepthBuffer(brdfLUT.width, brdfLUT.height);
     fb.addTextureBuffer(GL_COLOR_ATTACHMENT0, brdfLUT);
     fb.bind();
 
@@ -235,10 +102,13 @@ void ibl::ComputeBRDF(const ProgOptions& opts) {
 
     RenderQuad();
 
-    auto data = brdfLUT.getData();
-    util::SaveImage(opts.outFile, brdfLUT.sizeBytes(), data.get());
-    // util::SaveEXRImage(opts.outFile, opts.texSize, opts.texSize, 2,
-    //                    reinterpret_cast<float*>(data.get()));
+    ImageFormat fmt;
+    fmt.width = brdfLUT.width;
+    fmt.height = brdfLUT.height;
+    fmt.numChannels = 2;
+    fmt.compSize = opts.useHalfFloat ? 2 : 4;
+
+    util::SaveImage(opts.outFile, {fmt, brdfLUT.data()});
 }
 
 glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
@@ -254,15 +124,15 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
     auto program = CompileAndLinkProgram("convert", shaders);
 
     auto img = util::LoadImage(filePath);
-    Texture rectMap{GL_TEXTURE_2D, GL_RGB16F, img.width, img.height, {}};
-    rectMap.uploadData(img.data.get());
+    Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, img->width, img->height, {}};
+    rectMap.uploadData(img->data.get());
 
     Framebuffer fb{};
     fb.addDepthBuffer(cubeSize, cubeSize);
     fb.bind();
 
     auto cubemap = std::make_unique<Texture>(
-        GL_TEXTURE_CUBE_MAP, GL_RGB16F, cubeSize, cubeSize,
+        GL_TEXTURE_CUBE_MAP, GL_RGB32F, cubeSize, cubeSize,
         SamplerOpts{.minFilter = GL_LINEAR_MIPMAP_LINEAR}, 0, MaxMipLevel(cubeSize));
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
@@ -288,61 +158,12 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
     return cubemap;
 }
 
-void ibl::ConvertToCubemap(const ProgOptions& opts) {
-    int cubeSize = opts.texSize;
-
+void ibl::ConvertToCubemap(const CliOptions& opts) {
     auto cubemap = SphericalProjToCubemap(opts.inFile, opts.texSize);
-
-    std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
-                                                {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
-
-    auto dataOut = cubemap->getData();
-    for (int i = 0; i < 6; i++)
-        util::SaveEXRImage(std::format("{}.exr", cubeMap[i]), cubeSize, cubeSize, 3,
-                           (float*)(&dataOut.get()[sizeof(float) * i * 3 * cubeSize *
-                                                   cubeSize])); //&dataOut[5 * 3 *
-                                                                // cubeSize * cubeSize]);
-
-    auto superOut = std::make_unique<std::byte[]>(sizeof(float) * 3 * (4 * cubeSize) *
-                                                  (3 * cubeSize));
-
-    std::size_t sizePx = sizeof(float) * 3;
-    // for (int i = 0; i < cubeSize; ++i) {
-
-    std::size_t coordsX[] = {sizePx * (4 * cubeSize * cubeSize),
-                             sizePx * (4 * cubeSize * cubeSize) + sizePx * cubeSize,
-                             sizePx * (4 * cubeSize * cubeSize) + sizePx * 2 * cubeSize,
-                             sizePx * (4 * cubeSize * cubeSize) + sizePx * 3 * cubeSize,
-                             sizePx * cubeSize,
-                             sizePx * (4 * cubeSize * 2 * cubeSize) + sizePx * cubeSize};
-    std::size_t coordsSep[] = {sizePx * cubeSize * cubeSize,
-                               4 * sizePx * cubeSize * cubeSize,
-                               0,
-                               5 * sizePx * cubeSize * cubeSize,
-                               2 * sizePx * cubeSize * cubeSize,
-                               3 * sizePx * cubeSize * cubeSize};
-
-    for (int k = 0; k < 6; ++k) {
-        for (int j = 0; j < cubeSize; ++j) {
-            auto ptrDst = &superOut.get()[coordsX[k] + sizePx * (4 * cubeSize * j)];
-            auto ptrSrc = &dataOut.get()[coordsSep[k] + sizePx * cubeSize * j];
-            // auto ptrDst = &superOut.get()[sizePx * (4 * cubeSize * cubeSize) +
-            // sizePx * (4 * cubeSize * j)]; auto ptrSrc = &dataOut.get()[sizePx *
-            // cubeSize * cubeSize +
-            //                             sizePx * cubeSize * (j - cubeSize)];
-            std::memcpy(ptrDst, ptrSrc, sizePx * cubeSize);
-        }
-    }
-    //}
-
-    util::SaveEXRImage(std::format("mega.exr"), 4 * cubeSize, 3 * cubeSize, 3,
-                       (float*)superOut.get());
+    util::ExportCubemap(*cubemap);
 }
 
-void ibl::ComputeIrradiance(const ProgOptions& opts) {
-    auto envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
-    envMap->generateMipmaps();
-
+void ibl::ComputeIrradiance(const CliOptions& opts) {
     auto defines = std::vector<std::string>{};
     if (opts.divideLambertConstant)
         defines.emplace_back("DIVIDED_PI");
@@ -352,14 +173,20 @@ void ibl::ComputeIrradiance(const ProgOptions& opts) {
     auto shaders = std::vector{"convert.vert"s, "irradiance.frag"s};
     auto program = CompileAndLinkProgram("irradiance", shaders, defines);
 
-    // Load input cubemap 'envmap'
+    // Convert first if not in cubemap format yet
+    std::unique_ptr<Texture> envMap = nullptr;
+    if (opts.isInputEquirect) {
+        envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
+    } else {
+        // envMap = LoadCubemap(opts.inFile);  Load directly
+    }
+    envMap->generateMipmaps();
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture irradiance{
-        GL_TEXTURE_CUBE_MAP_ARRAY, GL_RGB16F, opts.texSize, opts.texSize, {}, 6};
+    Texture irradiance{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.texSize, {}, 6};
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
@@ -382,60 +209,10 @@ void ibl::ComputeIrradiance(const ProgOptions& opts) {
     }
     glEnable(GL_CULL_FACE);
 
-    // Extract irradiance
-    std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
-                                                {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
-
-    auto dataOut = irradiance.getData();
-    for (int i = 0; i < 6; i++)
-        util::SaveEXRImage(
-            std::format("{}.exr", cubeMap[i]), opts.texSize, opts.texSize, 3,
-            (float*)(&dataOut
-                          .get()[sizeof(float) * i * 3 * opts.texSize * opts.texSize]));
-
-    auto superOut = std::make_unique<std::byte[]>(sizeof(float) * 3 * (4 * opts.texSize) *
-                                                  (3 * opts.texSize));
-
-    std::size_t sizePx = sizeof(float) * 3;
-    // for (int i = 0; i < opts.texSize; ++i) {
-
-    std::size_t coordsX[] = {
-        sizePx * (4 * opts.texSize * opts.texSize),
-        sizePx * (4 * opts.texSize * opts.texSize) + sizePx * opts.texSize,
-        sizePx * (4 * opts.texSize * opts.texSize) + sizePx * 2 * opts.texSize,
-        sizePx * (4 * opts.texSize * opts.texSize) + sizePx * 3 * opts.texSize,
-        sizePx * opts.texSize,
-        sizePx * (4 * opts.texSize * 2 * opts.texSize) + sizePx * opts.texSize};
-    std::size_t coordsSep[] = {sizePx * opts.texSize * opts.texSize,
-                               4 * sizePx * opts.texSize * opts.texSize,
-                               0,
-                               5 * sizePx * opts.texSize * opts.texSize,
-                               2 * sizePx * opts.texSize * opts.texSize,
-                               3 * sizePx * opts.texSize * opts.texSize};
-
-    for (int k = 0; k < 6; ++k) {
-        for (int j = 0; j < opts.texSize; ++j) {
-            auto ptrDst = &superOut.get()[coordsX[k] + sizePx * (4 * opts.texSize * j)];
-            auto ptrSrc = &dataOut.get()[coordsSep[k] + sizePx * opts.texSize * j];
-            // auto ptrDst = &superOut.get()[sizePx * (4 * opts.texSize * opts.texSize) +
-            // sizePx * (4 * opts.texSize * j)]; auto ptrSrc = &dataOut.get()[sizePx *
-            // opts.texSize * opts.texSize +
-            //                             sizePx * opts.texSize * (j - opts.texSize)];
-            std::memcpy(ptrDst, ptrSrc, sizePx * opts.texSize);
-        }
-    }
-    //}
-
-    util::SaveEXRImage(std::format("mega.exr"), 4 * opts.texSize, 3 * opts.texSize, 3,
-                       (float*)superOut.get());
+    util::ExportCubemap(irradiance);
 }
 
-void ibl::ComputeConvolution(const ProgOptions& opts) {
-    auto maxMipLevels = 9;
-
-    auto envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
-    envMap->generateMipmaps();
-
+void ibl::ComputeConvolution(const CliOptions& opts) {
     auto defines = std::vector<std::string>{};
     if (opts.usePrefilteredIS)
         defines.emplace_back("PREFILTERED_IS");
@@ -443,14 +220,21 @@ void ibl::ComputeConvolution(const ProgOptions& opts) {
     auto shaders = std::vector{"convert.vert"s, "convolution.frag"s};
     auto program = CompileAndLinkProgram("convolution", shaders, defines);
 
-    // Load input cubemap 'envmap'
+    // Convert first if not in cubemap format yet
+    std::unique_ptr<Texture> envMap = nullptr;
+    if (opts.isInputEquirect) {
+        envMap = SphericalProjToCubemap(opts.inFile, opts.texSize);
+    } else {
+        // envMap = LoadCubemap(opts.inFile);  Load directly
+    }
+    envMap->generateMipmaps();
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB16F, opts.texSize, opts.texSize, {}, 6,
-                    maxMipLevels};
+    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.texSize, {}, 6,
+                    opts.mipLevels};
     convMap.generateMipmaps();
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
@@ -464,12 +248,12 @@ void ibl::ComputeConvolution(const ProgOptions& opts) {
     glActiveTexture(GL_TEXTURE0);
     envMap->bind();
     glDisable(GL_CULL_FACE);
-    for (int mip = 0; mip < maxMipLevels; ++mip) {
+    for (int mip = 0; mip < opts.mipLevels; ++mip) {
         int mipSize = opts.texSize * std::pow(0.5, mip);
         glViewport(0, 0, mipSize, mipSize);
         fb.resize(mipSize, mipSize);
 
-        float rough = (float)mip / (float)(maxMipLevels - 1);
+        float rough = (float)mip / (float)(opts.mipLevels - 1);
         glUniform1f(Roughness, rough);
 
         for (int face = 0; face < 6; ++face) {
@@ -482,15 +266,5 @@ void ibl::ComputeConvolution(const ProgOptions& opts) {
     }
     glEnable(GL_CULL_FACE);
 
-    std::map<unsigned int, std::string> cubeMap{{0, "+X"}, {1, "-X"}, {2, "+Y"},
-                                                {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
-
-    for (int mip = 0; mip < maxMipLevels; ++mip) {
-        for (int face = 0; face < 6; ++face) {
-            auto data = convMap.getData((CubemapFace)face, mip);
-            auto mipSize = std::max(convMap.width >> mip, 1);
-            util::SaveEXRImage(std::format("conv/{}_{}.exr", cubeMap[face], mip), mipSize,
-                               mipSize, 3, (float*)data.get());
-        }
-    }
+    util::ExportCubemap(convMap);
 }

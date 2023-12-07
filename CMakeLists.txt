@@ -18,6 +18,8 @@ set(IBLENV_SOURCES
   src/shader.cpp
   src/geometry.cpp
   src/texture.cpp
+  src/image.cpp
+  src/parser.cpp
   ${GLAD_SOURCES}
 )
 

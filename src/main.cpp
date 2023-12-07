@@ -4,7 +4,7 @@
 using namespace ibl;
 
 int main(int argc, char* argv[]) {
-    ProgOptions opts;
+    CliOptions opts;
 
     try {
         opts = ParseArgs(argc, argv);
