@@ -7,24 +7,22 @@
 #include <format>
 #include <memory>
 
+#include <image.h>
+#include <texture.h>
+
 namespace ibl {
 namespace util {
 
-struct RawImage {
-    std::unique_ptr<std::byte> data = nullptr;
-    int width;
-    int height;
-    int numChannels;
-    unsigned int compSize;
-};
+std::unique_ptr<Image> LoadImage(const std::string& filePath);
+std::unique_ptr<Image> LoadHDRImage(const std::string& filePath);
+std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool halfFloat = false,
+                                    bool keepAlpha = false);
 
-RawImage LoadImage(const std::string& filePath);
-RawImage LoadHDRImage(const std::string& filePath);
-RawImage LoadEXRImage(const std::string& filePath, bool keepAlpha = false);
+void SaveImage(const std::string& fname, const Image& image);
+bool SaveEXRImage(const std::string& fname, const Image& image);
+void SaveHDRImage(const std::string fname, const Image& image);
 
-void SaveImage(const std::string& fname, std::size_t size, void* data);
-bool SaveEXRImage(const std::string& fname, unsigned int width, unsigned int height,
-                  unsigned int numChannels, float* data);
+void ExportCubemap(const Texture& cube);
 
 std::optional<std::string> ReadFile(const std::string& filePath,
                                     std::ios_base::openmode mode);

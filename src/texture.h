@@ -50,9 +50,12 @@ struct FormatInfo {
 };
 
 static const std::map<unsigned int, FormatInfo> TexFormatInfo{
-    {GL_R16F, {1, sizeof(float), GL_R16F, GL_R, GL_FLOAT}},
-    {GL_RG16F, {2, sizeof(float), GL_RG16F, GL_RG, GL_FLOAT}},
-    {GL_RGB16F, {3, sizeof(float), GL_RGB16F, GL_RGB, GL_FLOAT}}};
+    {GL_R16F, {1, 2, GL_R16F, GL_R, GL_HALF_FLOAT}},
+    {GL_RG16F, {2, 2, GL_RG16F, GL_RG, GL_HALF_FLOAT}},
+    {GL_RGB16F, {3, 2, GL_RGB16F, GL_RGB, GL_HALF_FLOAT}},
+    {GL_R32F, {1, 4, GL_R32F, GL_R, GL_FLOAT}},
+    {GL_RG32F, {2, 4, GL_RG32F, GL_RG, GL_FLOAT}},
+    {GL_RGB32F, {3, 4, GL_RGB32F, GL_RGB, GL_FLOAT}}};
 
 class Texture {
 public:
@@ -71,8 +74,8 @@ public:
     void uploadData(void* dataPtr) const;
     void uploadCubeFace(CubemapFace face, void* dataPtr) const;
 
-    std::unique_ptr<std::byte[]> getData(int level = 0) const;
-    std::unique_ptr<std::byte[]> getData(CubemapFace face, int level = 0) const;
+    std::unique_ptr<std::byte[]> data(int level = 0) const;
+    std::unique_ptr<std::byte[]> data(CubemapFace face, int level = 0) const;
 
     std::size_t sizeBytes(unsigned int level = 0) const;
     std::size_t sizeBytesFace(unsigned int level = 0) const;

@@ -1,11 +1,9 @@
-#include "glad/glad.h"
-#include <filesystem>
-#include <ios>
-#include <regex>
 #include <shader.h>
-#include <util.h>
-#include <format>
+
+#include <regex>
 #include <iostream>
+
+#include <util.h>
 
 using namespace ibl;
 using namespace ibl::util;

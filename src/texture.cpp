@@ -40,14 +40,14 @@ void Texture::bind() const {
     glBindTexture(target, handle);
 }
 
-std::unique_ptr<std::byte[]> Texture::getData(int level) const {
+std::unique_ptr<std::byte[]> Texture::data(int level) const {
     auto size = sizeBytes(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
     glGetTextureImage(handle, level, info->format, info->type, size, dataPtr.get());
     return dataPtr;
 }
 
-std::unique_ptr<std::byte[]> Texture::getData(CubemapFace face, int level) const {
+std::unique_ptr<std::byte[]> Texture::data(CubemapFace face, int level) const {
     auto size = sizeBytesFace(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
     bind();
