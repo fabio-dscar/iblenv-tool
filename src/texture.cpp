@@ -47,7 +47,7 @@ std::unique_ptr<std::byte[]> Texture::data(int level) const {
     return dataPtr;
 }
 
-std::unique_ptr<std::byte[]> Texture::data(CubemapFace face, int level) const {
+std::unique_ptr<std::byte[]> Texture::faceData(int face, int level) const {
     auto size = sizeBytesFace(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
     bind();
@@ -62,8 +62,8 @@ void Texture::uploadData(void* dataPtr) const {
                         dataPtr);
 }
 
-void Texture::uploadCubeFace(CubemapFace face, void* dataPtr) const {
-    glTextureSubImage3D(handle, 0, 0, 0, face, width, height, 0, info->format, info->type,
+void Texture::uploadCubeFace(int face, void* dataPtr) const {
+    glTextureSubImage3D(handle, 0, 0, 0, face, width, height, 1, info->format, info->type,
                         dataPtr);
 }
 
@@ -78,6 +78,12 @@ std::size_t Texture::sizeBytesFace(unsigned int level) const {
     int w = std::max(width >> level, 1);
     int h = std::max(height >> level, 1);
     return info->compSize * info->numChannels * w * h;
+}
+
+ImageFormat Texture::imgFormat(int level) const {
+    int w = width * std::pow(0.5, level);
+    int h = height * std::pow(0.5, level);
+    return {w, h, 0, info->numChannels, info->compSize};
 }
 
 void Texture::setParam(GLenum param, GLint val) const {

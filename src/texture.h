@@ -1,6 +1,7 @@
 #ifndef __IBL_TEXTURE_H__
 #define __IBL_TEXTURE_H__
 
+#include "image.h"
 #include <glad/glad.h>
 #include <map>
 #include <memory>
@@ -42,8 +43,8 @@ struct SamplerOpts {
 };
 
 struct FormatInfo {
-    unsigned int numChannels;
-    unsigned int compSize;
+    int numChannels;
+    int compSize;
     GLuint intFormat;
     GLuint format;
     GLuint type;
@@ -72,13 +73,15 @@ public:
     void setParam(GLenum param, GLint val) const;
 
     void uploadData(void* dataPtr) const;
-    void uploadCubeFace(CubemapFace face, void* dataPtr) const;
+    void uploadCubeFace(int face, void* dataPtr) const;
 
     std::unique_ptr<std::byte[]> data(int level = 0) const;
-    std::unique_ptr<std::byte[]> data(CubemapFace face, int level = 0) const;
+    std::unique_ptr<std::byte[]> faceData(int face, int level = 0) const;
 
     std::size_t sizeBytes(unsigned int level = 0) const;
     std::size_t sizeBytesFace(unsigned int level = 0) const;
+
+    ImageFormat imgFormat(int level = 0) const;
 
     GLuint target = 0;
     GLuint handle = 0;
