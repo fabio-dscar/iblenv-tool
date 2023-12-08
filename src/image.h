@@ -10,22 +10,6 @@
 
 namespace ibl {
 
-// enum class ImageFormat {
-//     UNKNOWN = 0,
-
-//     R8,
-//     RG8,
-//     RGB8,
-
-//     R16F,
-//     RG16F,
-//     RGB16F,
-
-//     R32F,
-//     RG32F,
-//     RGB32F
-// };
-
 struct ImageFormat {
     int width = 0, height = 0, depth = 0;
     int numChannels = 0;
@@ -38,55 +22,31 @@ struct RawImage {
     ImageFormat fmt;
 };
 
-std::size_t ImageSizeLevels(const ImageFormat& fmt, int levels);
+std::size_t ImageSize(const ImageFormat& fmt, int levels = 1);
 
 class Image {
 public:
     Image() = default;
-    Image(ImageFormat format, int levels = 1)
-        : width(format.width), height(format.height), depth(format.depth), levels(levels),
-          numChannels(format.numChannels), compSize(format.compSize) {}
-
-    Image(ImageFormat format, int levels, const RawImage& source)
-        : Image(format, levels) {
-        copy(source);
-    }
-
-    Image(ImageFormat format, int levels, void* srcData) : Image(format, levels) {
-        data = std::make_unique<std::byte[]>(size());
-        std::memcpy(data.get(), srcData, size());
-    }
-
-    Image(ImageFormat format, std::unique_ptr<std::byte[]> imgPtr, int levels = 1)
-        : Image(format, levels) {
-        data = std::move(imgPtr);
-    }
+    Image(ImageFormat format, int levels = 1);
+    Image(ImageFormat format, int levels, const RawImage& source);
+    Image(ImageFormat format, int levels, void* srcData);
+    Image(ImageFormat format, std::unique_ptr<std::byte[]> imgPtr, int levels = 1);
 
     void copy(const RawImage& src);
+    void copy(int dstX, int dstY, int srcX, int srcY, int lenX, int lenY,
+              const Image& src);
 
-    std::byte* dataPtr(int lvl = 0) const {
-        std::size_t prevLevelsSz = ImageSizeLevels(
-            {width, height, depth, numChannels, compSize}, std::max(lvl - 1, 0));
-        return &data.get()[prevLevelsSz];
-    }
+    std::byte* dataPtr(int lvl = 0) const;
 
-    std::size_t size(int level) const {
-        int w = width * std::pow(0.5, level);
-        int h = height * std::pow(0.5, level);
-        int d = depth * std::pow(0.5, level);
-        return w * std::max(h, 1) * std::max(d, 1) * compSize;
-    }
+    std::size_t size() const;
+    std::size_t size(int level) const;
 
-    std::size_t size() const {
-        return ImageSizeLevels({width, height, depth, numChannels, compSize}, levels);
-    }
-
-    std::size_t pixelOffset() const { return compSize * numChannels; }
+    std::size_t pixelOffset() const { return compSize * numChan; }
 
     std::unique_ptr<std::byte[]> data = nullptr;
     int width = 0, height = 0, depth = 0;
     int levels = 1;
-    int numChannels = 0;
+    int numChan = 0;
     int compSize = 1;
 };
 
