@@ -1,8 +1,34 @@
+#include "util.h"
 #include <parser.h>
+
+#include <filesystem>
 
 #include <argparse/argparse.hpp>
 
 using namespace ibl;
+using namespace std::filesystem;
+
+bool IsSupportedFormat(const path& filePath) {
+    const static std::vector formats{".exr", ".hdr", ".bin"};
+    auto ext = filePath.extension();
+    auto res = std::find(formats.begin(), formats.end(), ext);
+    return res != formats.end() || filePath == "";
+}
+
+void ValidateOptions(const CliOptions& opts) {
+    const static std::vector formats{".exr", ".hdr", ".bin"};
+
+    if (!IsSupportedFormat(opts.inFile))
+        util::ExitWithError("Input file {} has unsupported format.", opts.inFile);
+
+    if (!IsSupportedFormat(opts.outFile))
+        util::ExitWithError("Output file {} has unsupported format.", opts.outFile);
+
+    if (opts.mode == Mode::BRDF) {
+        if (path(opts.outFile).extension() == ".hdr")
+            util::ExitWithError("Exporting the brdf in .hdr format is not supported.");
+    }
+}
 
 CliOptions BuildOptions(argparse::ArgumentParser& p) {
     CliOptions opts;
@@ -14,7 +40,7 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.texSize = brdfMode.get<int>("-s");
         opts.multiScattering = brdfMode.get<bool>("--ms");
         opts.outFile = brdfMode.get("-o");
-        opts.useHalfFloat = !brdfMode.get<bool>("--use32f");
+        opts.useHalf = !brdfMode.get<bool>("--use32f");
         opts.flipUv = brdfMode.get<bool>("--flip-v");
         return opts;
     }
@@ -25,6 +51,7 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.texSize = convertMode.get<int>("-s");
         opts.inFile = convertMode.get("-i");
         opts.outFile = convertMode.get("-o");
+        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
         return opts;
     }
 
@@ -36,7 +63,8 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.outFile = irradianceMode.get("-o");
         opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
         opts.numSamples = irradianceMode.get<unsigned int>("--spp");
-        opts.isInputEquirect = irradianceMode.get("-t") == "equirect";
+        opts.isInputEquirect = false; // irradianceMode.get("-t") == "equirect";
+        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
         return opts;
     }
 
@@ -49,7 +77,8 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.usePrefilteredIS = !convolutionMode.get<bool>("--no-prefiltered");
         opts.numSamples = convolutionMode.get<unsigned int>("--spp");
         opts.mipLevels = convolutionMode.get<int>("-l");
-        opts.isInputEquirect = convolutionMode.get("-t") == "equirect";
+        opts.isInputEquirect = false; // convolutionMode.get("-t") == "equirect";
+        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
         return opts;
     }
 
@@ -187,5 +216,8 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
 
     program.parse_args(argc, argv);
 
-    return BuildOptions(program);
+    auto opts = BuildOptions(program);
+    ValidateOptions(opts);
+
+    return opts;
 }

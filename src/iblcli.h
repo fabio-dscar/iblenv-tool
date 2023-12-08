@@ -19,6 +19,8 @@ enum UniformLocs {
     Roughness = 5,
 };
 
+std::vector<std::string> GetShaderDefines(const CliOptions& opts);
+
 void InitOpenGL();
 void ComputeBRDF(const CliOptions& opts);
 void ComputeConvolution(const CliOptions& opts);
