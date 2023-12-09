@@ -7,7 +7,7 @@ using namespace ibl;
 
 Texture::Texture(unsigned int target, unsigned int format, int width, int height,
                  SamplerOpts sampler, int layers, int levels)
-    : target(target), width(width), height(height), levels(levels), layers(layers) {
+    : width(width), height(height), levels(levels), target(target), layers(layers) {
 
     auto pair = TexFormatInfo.find(format);
     if (pair == TexFormatInfo.end())
@@ -47,7 +47,7 @@ std::unique_ptr<std::byte[]> Texture::data(int level) const {
     return dataPtr;
 }
 
-std::unique_ptr<std::byte[]> Texture::faceData(int face, int level) const {
+std::unique_ptr<std::byte[]> Texture::data(int face, int level) const {
     auto size = sizeBytesFace(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
     bind();
@@ -57,14 +57,14 @@ std::unique_ptr<std::byte[]> Texture::faceData(int face, int level) const {
     return dataPtr;
 }
 
-void Texture::uploadData(void* dataPtr) const {
-    glTextureSubImage2D(handle, 0, 0, 0, width, height, info->format, info->type,
-                        dataPtr);
+void Texture::upload(const ImageSpan& image, int lvl) const {
+    glTextureSubImage2D(handle, lvl, 0, 0, image.width, image.height, info->format,
+                        info->type, image.data());
 }
 
-void Texture::uploadCubeFace(int face, void* dataPtr) const {
-    glTextureSubImage3D(handle, 0, 0, 0, face, width, height, 1, info->format, info->type,
-                        dataPtr);
+void Texture::upload(const ImageSpan& image, int face, int lvl) const {
+    glTextureSubImage3D(handle, lvl, 0, 0, face, width, height, 1, info->format,
+                        info->type, image.data());
 }
 
 std::size_t Texture::sizeBytes(unsigned int level) const {

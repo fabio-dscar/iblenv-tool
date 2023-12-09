@@ -6,40 +6,45 @@
 #include <optional>
 #include <format>
 #include <memory>
+#include <filesystem>
+
 #include <image.h>
 #include <texture.h>
 
 namespace ibl {
 namespace util {
 
+// --------------------------------------------
+//    Images
+///
 std::unique_ptr<Image> LoadImage(const std::string& filePath, ImageFormat* fmt = nullptr);
 std::unique_ptr<Image> LoadHDRImage(const std::string& filePath);
 std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool halfFloat = false,
                                     bool keepAlpha = false);
 
-std::unique_ptr<Texture> LoadCubemap(const std::string& filePath,
-                                     ImageFormat* fmt = nullptr);
+void SaveMipmappedImage(const std::string& fname, const Image& image);
 
-void SaveImage(const std::string& fname, const Image& image);
-bool SaveEXRImage(const std::string& fname, const Image& image);
-void SaveHDRImage(const std::string fname, const Image& image);
+void SaveImage(const std::string& fname, const ImageSpan& image);
+bool SaveEXRImage(const std::string& fname, const ImageSpan& image);
+void SaveHDRImage(const std::string fname, const ImageSpan& image);
 
-enum class CubeExportType {
-    HorizontalCross = 0,
-    InvHorizontalCross = 1,
-    Sequence = 2,
-    Separate = 3,
-    VerticalSequence = 4,
-    VerticalCross = 5
-};
-
-std::unique_ptr<Texture> ImportCubeMap(const std::string& filePath, CubeExportType type,
-                                       ImageFormat* reqFmt);
-void ExportCubemap(const std::string& filePath, CubeExportType type, const Texture& cube);
-
+// --------------------------------------------
+//    General IO
+///
 std::optional<std::string> ReadFile(const std::string& filePath,
                                     std::ios_base::openmode mode);
 
+inline auto SplitFilePath(const std::filesystem::path& filePath) {
+    auto parent = filePath.parent_path();
+    std::string fname = filePath.filename().replace_extension("");
+    std::string ext = filePath.extension();
+
+    return std::tuple{parent, fname, ext};
+}
+
+// --------------------------------------------
+//    Error handling
+///
 bool CheckOpenGLError();
 void ExitWithErrorMsg(const std::string& message);
 

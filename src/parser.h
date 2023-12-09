@@ -1,8 +1,8 @@
 #ifndef __IBL_PARSER_H__
 #define __IBL_PARSER_H__
 
-#include "util.h"
 #include <string>
+#include <cubemap.h>
 
 namespace ibl {
 
@@ -10,8 +10,8 @@ enum class Mode { UNKNOWN, BRDF, IRRADIANCE, CONVERT, CONVOLUTION };
 
 struct CliOptions {
     Mode mode = Mode::UNKNOWN;
-    util::CubeExportType exportType;
-    util::CubeExportType importType;
+    CubeLayoutType exportType;
+    CubeLayoutType importType;
     std::string outFile;
     std::string inFile;
     unsigned int numSamples;

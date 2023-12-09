@@ -51,7 +51,8 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.texSize = convertMode.get<int>("-s");
         opts.inFile = convertMode.get("-i");
         opts.outFile = convertMode.get("-o");
-        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
+        opts.isInputEquirect = true;
+        opts.exportType = CubeLayoutType::HorizontalCross;
         return opts;
     }
 
@@ -64,7 +65,7 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
         opts.numSamples = irradianceMode.get<unsigned int>("--spp");
         opts.isInputEquirect = false; // irradianceMode.get("-t") == "equirect";
-        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
+        opts.exportType = CubeLayoutType::HorizontalCross;
         return opts;
     }
 
@@ -78,7 +79,7 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
         opts.numSamples = convolutionMode.get<unsigned int>("--spp");
         opts.mipLevels = convolutionMode.get<int>("-l");
         opts.isInputEquirect = false; // convolutionMode.get("-t") == "equirect";
-        opts.exportType = ibl::util::CubeExportType::VerticalSequence;
+        opts.exportType = CubeLayoutType::HorizontalCross;
         return opts;
     }
 
@@ -104,7 +105,7 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .default_value(false);
 
     brdfCmd.add_argument("-s", "--texsize")
-        .help("Specifies the number of samples per pixel.")
+        .help("Specifies the width and height of the output texture.")
         .nargs(1)
         .default_value(1024)
         .scan<'i', int>();
@@ -127,6 +128,8 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
               "('bin' extension).")
         .nargs(1)
         .default_value("brdf.bin");
+
+
 
     argparse::ArgumentParser convert("convert");
     convert.add_description("");

@@ -8,31 +8,7 @@
 #include <cmath>
 #include <vector>
 
-#include <glm/glm.hpp>
-#include <glm/matrix.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/common.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 namespace ibl {
-
-enum CubemapFace {
-    CUBE_X_POS = 0,
-    CUBE_X_NEG = 1,
-    CUBE_Y_POS = 2,
-    CUBE_Y_NEG = 3,
-    CUBE_Z_POS = 4,
-    CUBE_Z_NEG = 5
-};
-
-static const std::vector CubeMapViews{
-    glm::lookAt(glm::vec3{0}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
-    glm::lookAt(glm::vec3{0}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
-    glm::lookAt(glm::vec3{0}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}),
-    glm::lookAt(glm::vec3{0}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}),
-    glm::lookAt(glm::vec3{0}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}),
-    glm::lookAt(glm::vec3{0}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f})};
 
 struct SamplerOpts {
     GLuint wrapS = GL_CLAMP_TO_EDGE;
@@ -62,6 +38,8 @@ class Texture {
 public:
     Texture(unsigned int target, unsigned int format, int sideSize)
         : Texture(target, format, sideSize, sideSize, {}) {}
+    Texture(unsigned int target, unsigned int format, unsigned int side, int levels = 1)
+        : Texture(target, format, side, side, {}, 0, levels) {}
     Texture(unsigned int target, unsigned int format, int width, int height,
             SamplerOpts sampler, int layers = 0, int levels = 1);
 
@@ -72,22 +50,33 @@ public:
     void generateMipmaps() const;
     void setParam(GLenum param, GLint val) const;
 
-    void uploadData(void* dataPtr) const;
-    void uploadCubeFace(int face, void* dataPtr) const;
-
-    std::unique_ptr<std::byte[]> data(int level = 0) const;
-    std::unique_ptr<std::byte[]> faceData(int face, int level = 0) const;
+    void upload(const ImageSpan& image, int lvl = 0) const;
+    void upload(const ImageSpan& image, int face, int lvl) const;
 
     std::size_t sizeBytes(unsigned int level = 0) const;
     std::size_t sizeBytesFace(unsigned int level = 0) const;
 
     ImageFormat imgFormat(int level = 0) const;
 
-    GLuint target = 0;
+    Image image(int level = 0) const { 
+        return {imgFormat(level), data(levels)}; 
+    }
+
+    Image face(int face, int level = 0) const {
+        return {imgFormat(level), data(face, level)};
+    }
+
     GLuint handle = 0;
     int width = 0, height = 0;
-    int levels = 1, layers = 0;
+    int levels = 1;
+
+private:
+    std::unique_ptr<std::byte[]> data(int level) const;
+    std::unique_ptr<std::byte[]> data(int face, int level) const;
+
     const FormatInfo* info = nullptr;
+    GLuint target = 0;
+    int layers = 0;
 };
 
 inline int MaxMipLevel(int width, int height = 0, int depth = 0) {
