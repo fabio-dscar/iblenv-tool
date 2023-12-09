@@ -20,6 +20,7 @@
 
 #include <texture.h>
 #include <framebuffer.h>
+#include <cubemap.h>
 
 using namespace ibl;
 using namespace std::literals;
@@ -99,7 +100,7 @@ void ibl::ComputeBRDF(const CliOptions& opts) {
 
     RenderQuad();
 
-    util::SaveImage(opts.outFile, {brdfLUT.imgFormat(), brdfLUT.data()});
+    util::SaveImage(opts.outFile, brdfLUT.image());
 }
 
 glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
@@ -116,15 +117,15 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
 
     auto img = util::LoadImage(filePath);
     Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, img->width, img->height, {}};
-    rectMap.uploadData(img->data.get());
+    rectMap.upload(*img);
 
     Framebuffer fb{};
     fb.addDepthBuffer(cubeSize, cubeSize);
     fb.bind();
 
-    auto cubemap = std::make_unique<Texture>(
-        GL_TEXTURE_CUBE_MAP, GL_RGB32F, cubeSize, cubeSize,
-        SamplerOpts{.minFilter = GL_LINEAR_MIPMAP_LINEAR}, 0, MaxMipLevel(cubeSize));
+    auto cubemap = std::make_unique<Texture>(GL_TEXTURE_CUBE_MAP, GL_RGB32F, cubeSize,
+                                             MaxMipLevel(cubeSize));
+    cubemap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, swapHand ? -1 : 1}, degs);
@@ -149,19 +150,21 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
     return cubemap;
 }
 
-void ibl::ConvertToCubemap(const CliOptions& opts) {
-    auto cubemap = SphericalProjToCubemap(opts.inFile, opts.texSize);
-    cubemap->levels = 1; // Only export level 0
-    util::ExportCubemap(opts.outFile, opts.exportType, *cubemap);
-}
-
 auto LoadEnvironment(const CliOptions& opts, ImageFormat* reqFmt = nullptr) {
-    using enum util::CubeExportType;
+    using enum CubeLayoutType;
 
     if (opts.isInputEquirect)
         return SphericalProjToCubemap(opts.inFile, opts.texSize);
 
-    return util::ImportCubeMap(opts.inFile, VerticalSequence, reqFmt);
+    return ImportCubeMap(opts.inFile, HorizontalCross, reqFmt);
+}
+
+void ibl::ConvertToCubemap(const CliOptions& opts) {
+    auto cubemap = LoadEnvironment(opts);
+    if (opts.isInputEquirect)
+        cubemap->levels = 1; // Only export level 0
+
+    ExportCubemap(opts.outFile, opts.exportType, *cubemap);
 }
 
 void ibl::ComputeIrradiance(const CliOptions& opts) {
@@ -171,6 +174,7 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
 
     auto envMap = LoadEnvironment(opts);
     envMap->generateMipmaps();
+    envMap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);
@@ -199,7 +203,7 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
         RenderCube();
     }
 
-    util::ExportCubemap(opts.outFile, opts.exportType, irradiance);
+    ExportCubemap(opts.outFile, opts.exportType, irradiance);
 }
 
 void ibl::ComputeConvolution(const CliOptions& opts) {
@@ -209,6 +213,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
 
     auto envMap = LoadEnvironment(opts);
     envMap->generateMipmaps();
+    envMap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);
@@ -247,7 +252,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
         }
     }
 
-    util::ExportCubemap(opts.outFile, opts.exportType, convMap);
+    ExportCubemap(opts.outFile, opts.exportType, convMap);
 }
 
 std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
