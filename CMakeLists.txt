@@ -20,6 +20,7 @@ set(IBLENV_SOURCES
   src/texture.cpp
   src/image.cpp
   src/parser.cpp
+  src/cubemap.cpp
   ${GLAD_SOURCES}
 )
 
