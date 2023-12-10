@@ -43,9 +43,10 @@ std::byte* Image::pixel(int x, int y, int level) const {
 }
 
 std::size_t Image::size(int lvl) const {
-    int w = width * std::pow(0.5, lvl);
-    int h = height * std::pow(0.5, lvl);
-    int d = depth * std::pow(0.5, lvl);
+    auto resizeFactor = std::pow(0.5, lvl);
+    int w = width * resizeFactor;
+    int h = height * resizeFactor;
+    int d = depth * resizeFactor;
     return w * std::max(h, 1) * std::max(d, 1) * compSize * numChan;
 }
 

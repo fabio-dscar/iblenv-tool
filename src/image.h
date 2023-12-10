@@ -7,6 +7,7 @@
 #include <memory>
 #include <cmath>
 #include <cassert>
+#include <array>
 
 namespace ibl {
 
@@ -50,6 +51,12 @@ public:
     std::byte* data(int lvl = 0) const;
     std::byte* pixel(int x, int y, int lvl = 0) const;
 
+    template<typename T>
+    T val(int x, int y, int chan) const {
+        const T* ptr = pixel(x, y);
+        return ptr[chan];
+    }
+
     std::size_t size() const;
     std::size_t size(int lvl) const;
 
@@ -63,6 +70,43 @@ public:
     int levels = 1;
     int numChan = 0;
     int compSize = 1;
+};
+
+class CubeImage {
+public:
+    CubeImage(const ImageFormat& format) {
+        for (auto& face : faces)
+            face = Image{format};
+    }
+
+    CubeImage(ImageFormat format, int levels) {
+        format.levels = levels;
+
+        for (auto& face : faces)
+            face = Image{format};
+    }
+
+    Image& face(int face) {
+        return faces[face];
+    }
+
+    const Image& face(int face) const {
+        return faces[face];
+    }
+
+    void setFace(int face, Image src) {
+        faces[face] = std::move(src);
+    }
+
+    ImageFormat imgFormat(int level = 0) const {
+        return faces[0].format(level);
+    }
+
+    int levels() const {
+        return faces[0].levels;
+    }
+
+    std::array<Image, 6> faces;
 };
 
 struct SpanExtents {

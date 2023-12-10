@@ -9,7 +9,29 @@ Texture::Texture(unsigned int target, unsigned int format, int width, int height
                  SamplerOpts sampler, int layers, int levels)
     : width(width), height(height), levels(levels), target(target), layers(layers) {
 
-    auto pair = TexFormatInfo.find(format);
+    init(format, sampler);
+}
+
+Texture::Texture(const CubeImage& cube) {
+    ImageFormat fmt = cube.imgFormat();
+
+    target = GL_TEXTURE_CUBE_MAP;
+    width = fmt.width;
+    height = fmt.height;
+    levels = cube.levels();
+
+    auto intFormat = DeduceIntFormat(fmt.compSize, fmt.numChannels);
+
+    init(intFormat, {});
+}
+
+Texture::~Texture() {
+    if (handle != 0)
+        glDeleteTextures(1, &handle);
+}
+
+void Texture::init(unsigned int format, const SamplerOpts& sampler) {
+        auto pair = TexFormatInfo.find(format);
     if (pair == TexFormatInfo.end())
         util::ExitWithError("Unsupported internal format {}", format);
 
@@ -29,11 +51,6 @@ Texture::Texture(unsigned int target, unsigned int format, int width, int height
 
     glTextureParameteri(handle, GL_TEXTURE_MIN_FILTER, sampler.minFilter);
     glTextureParameteri(handle, GL_TEXTURE_MAG_FILTER, sampler.magFilter);
-}
-
-Texture::~Texture() {
-    if (handle != 0)
-        glDeleteTextures(1, &handle);
 }
 
 void Texture::bind() const {
@@ -65,6 +82,37 @@ void Texture::upload(const ImageSpan& image, int lvl) const {
 void Texture::upload(const ImageSpan& image, int face, int lvl) const {
     glTextureSubImage3D(handle, lvl, 0, 0, face, width, height, 1, info->format,
                         info->type, image.data());
+}
+
+void Texture::upload(const CubeImage& cubemap) const {
+    for (int lvl = 0; lvl < cubemap.levels(); ++lvl) {
+        for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
+            auto& cubeFace = cubemap.face(faceIdx);
+            glTextureSubImage3D(handle, lvl, 0, 0, faceIdx, width, height, 1,
+                                info->format, info->type, cubeFace.data(lvl));
+        }
+    }
+}
+
+std::unique_ptr<CubeImage> Texture::cubemap() const {
+    auto imgFmt = imgFormat();
+    imgFmt.levels = levels;
+
+    auto cube = std::make_unique<CubeImage>(imgFmt);
+    for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
+        Image faceImg{imgFormat()};
+        for (int lvl = 0; lvl < levels; ++lvl)
+            faceImg.copy(face(faceIdx, lvl), lvl);
+        cube->setFace(faceIdx, std::move(faceImg));
+    }
+    return cube;
+}
+
+CubeImage Texture::cubemap(int level) const {
+    CubeImage cube{imgFormat(level)};
+    for (int faceIdx = 0; faceIdx < 6; ++faceIdx)
+        cube.setFace(faceIdx, face(faceIdx, level));
+    return cube;
 }
 
 std::size_t Texture::sizeBytes(unsigned int level) const {

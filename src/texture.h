@@ -8,6 +8,8 @@
 #include <cmath>
 #include <vector>
 
+#include <array>
+
 namespace ibl {
 
 struct SamplerOpts {
@@ -42,6 +44,7 @@ public:
         : Texture(target, format, side, side, {}, 0, levels) {}
     Texture(unsigned int target, unsigned int format, int width, int height,
             SamplerOpts sampler, int layers = 0, int levels = 1);
+    explicit Texture(const CubeImage& cube);
 
     ~Texture();
 
@@ -52,6 +55,7 @@ public:
 
     void upload(const ImageSpan& image, int lvl = 0) const;
     void upload(const ImageSpan& image, int face, int lvl) const;
+    void upload(const CubeImage& cubemap) const;
 
     std::size_t sizeBytes(unsigned int level = 0) const;
     std::size_t sizeBytesFace(unsigned int level = 0) const;
@@ -66,11 +70,16 @@ public:
         return {imgFormat(level), data(face, level)};
     }
 
+    std::unique_ptr<CubeImage> cubemap() const;
+    CubeImage cubemap(int level) const;
+
     GLuint handle = 0;
     int width = 0, height = 0;
     int levels = 1;
 
 private:
+    void init(unsigned int format, const SamplerOpts& sampler);
+
     std::unique_ptr<std::byte[]> data(int level) const;
     std::unique_ptr<std::byte[]> data(int face, int level) const;
 
@@ -82,6 +91,23 @@ private:
 inline int MaxMipLevel(int width, int height = 0, int depth = 0) {
     int dim = std::max(width, std::max(height, depth));
     return 1 + static_cast<int>(std::floor(std::log2(dim)));
+}
+
+inline unsigned int DeduceIntFormat(int compSize, int numChannels) {
+    static const std::array f16s{GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F};
+    static const std::array f32s{GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F};
+    static const std::array u8s{GL_R8, GL_RG8, GL_RGB8, GL_RGBA8};
+
+    switch (compSize) {
+    case 1:
+        return u8s[numChannels - 1];
+    case 2:
+        return f16s[numChannels - 1];
+    case 4:
+        return f32s[numChannels - 1];
+    default:
+        return 0;
+    };
 }
 
 } // namespace ibl
