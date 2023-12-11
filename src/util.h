@@ -22,17 +22,17 @@ std::unique_ptr<Image> LoadHDRImage(const std::string& filePath);
 std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool halfFloat = false,
                                     bool keepAlpha = false);
 
-void SaveMipmappedImage(const std::string& fname, const Image& image);
-
 void SaveImage(const std::string& fname, const ImageSpan& image);
-bool SaveEXRImage(const std::string& fname, const ImageSpan& image);
+void SaveMipmappedImage(const std::filesystem::path& filePath, const Image& image);
+
+void SaveEXRImage(const std::string& fname, const ImageSpan& image);
 void SaveHDRImage(const std::string fname, const ImageSpan& image);
 
 // --------------------------------------------
 //    General IO
 ///
-std::optional<std::string> ReadFile(const std::string& filePath,
-                                    std::ios_base::openmode mode);
+std::optional<std::string> ReadTextFile(const std::string& filePath,
+                                        std::ios_base::openmode mode);
 
 inline auto SplitFilePath(const std::filesystem::path& filePath) {
     auto parent = filePath.parent_path();

@@ -29,19 +29,16 @@ using namespace std::filesystem;
 std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
                                      const ImageFormat& fmt) {
     std::ifstream file(filePath, std::ios_base::in | std::ios_base::binary);
-    if (file.fail()) {
-        perror(filePath.c_str());
-        return nullptr;
-    }
+    if (file.fail())
+        ExitWithError("Failed to open file {}", filePath);
 
     file.seekg(0, std::ios::end);
     auto size = file.tellg();
     file.seekg(0, std::ios::beg);
 
     auto imgSize = ibl::ImageSize(fmt);
-    if (size != static_cast<long>(imgSize)) {
+    if (size != static_cast<long>(imgSize))
         ExitWithError("Wrong format specified for image {}", filePath);
-    }
 
     auto data = std::make_unique<std::byte[]>(size);
     file.read(reinterpret_cast<char*>(data.get()), size);
@@ -110,17 +107,57 @@ std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool half
     return std::make_unique<Image>(dstFmt, src);
 }
 
-void DumpRawImage(const std::string& fname, std::size_t size, const void* data) {
+void SaveRawImage(const std::string& fname, std::size_t size, const void* data) {
     std::ofstream file(fname, std::ios_base::out | std::ios_base::binary);
     file.write(reinterpret_cast<const char*>(data), size);
     file.close();
 }
 
-void util::SaveMipmappedImage(const std::string& fname, const Image& image) {
-    // TODO
-    for (int lvl = 0; image.levels; ++lvl) {
-        SaveImage(fname, ImageSpan{image, lvl});
-    }
+struct ImgHeader {
+    char id[4] = {'I', 'M', 'G', ' '};
+    unsigned int fmt;
+    unsigned int width;
+    unsigned int height;
+    unsigned int depth;
+    unsigned int compSize;
+    unsigned int numChannels;
+    unsigned int totalSize;
+    unsigned int levels;
+};
+
+void SaveImgFormatImage(const path& filePath, const ImageSpan& img) {
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+
+    auto imgFmt = img.format();
+
+    ImgHeader header;
+    header.fmt = 0;
+    header.width = imgFmt.width;
+    header.height = imgFmt.height;
+    header.depth = imgFmt.depth;
+    header.compSize = imgFmt.compSize;
+    header.numChannels = imgFmt.numChannels;
+    header.totalSize = img.size();
+    header.levels = imgFmt.levels;
+
+    auto outName = std::format("{}{}", fname, ".img");
+    std::ofstream file(fname, std::ios_base::out | std::ios_base::binary);
+    file.write((const char*)&header, sizeof(ImgHeader));
+    file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
+    file.close();
+}
+
+void util::SaveMipmappedImage(const path& filePath, const Image& image) {
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+
+    auto NameOutput = [&](int lvl) -> auto {
+        if (image.levels > 1)
+            return std::format("{}_{}{}", fname, lvl, ext);
+        return filePath.filename().string();
+    };
+
+    for (int lvl = 0; lvl < image.levels; ++lvl)
+        SaveImage(parent / NameOutput(lvl), ImageSpan{image, lvl});
 }
 
 void util::SaveImage(const std::string& fname, const ImageSpan& image) {
@@ -130,7 +167,9 @@ void util::SaveImage(const std::string& fname, const ImageSpan& image) {
     else if (ext == ".hdr")
         SaveHDRImage(fname, image);
     else if (ext == ".bin")
-        DumpRawImage(fname, image.size(), image.data());
+        SaveRawImage(fname, image.size(), image.data());
+    else if (ext == ".img")
+        SaveImgFormatImage(fname, image);
     else
         ExitWithError("Unsupported format {}", ext);
 }
@@ -140,7 +179,7 @@ void util::SaveHDRImage(const std::string fname, const ImageSpan& image) {
                    reinterpret_cast<const float*>(image.data()));
 }
 
-bool util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
+void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
     int width = image.width;
     int height = image.height;
     int numChannels = 3;
@@ -207,20 +246,18 @@ bool util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
     const char* err;
     int ret = SaveEXRImageToFile(&exrImage, &header, fname.c_str(), &err);
     if (ret != TINYEXR_SUCCESS) {
-        fprintf(stderr, "Save EXR err: %s\n", err);
-        return ret;
+        ExitWithError("Error saving EXR image {}", err);
     }
-    printf("Saved exr file. [ %s ] \n", fname.c_str());
+
+    printf("Saved EXR file. [ %s ] \n", fname.c_str());
 
     free(header.channels);
     free(header.pixel_types);
     free(header.requested_pixel_types);
-
-    return true;
 }
 
-std::optional<std::string> util::ReadFile(const std::string& filepath,
-                                          std::ios_base::openmode mode) {
+std::optional<std::string> util::ReadTextFile(const std::string& filepath,
+                                              std::ios_base::openmode mode) {
     std::ifstream file(filepath, mode);
     if (file.fail()) {
         perror(filepath.c_str());
@@ -240,8 +277,7 @@ std::optional<std::string> util::ReadFile(const std::string& filepath,
 
 void util::ExitWithErrorMsg(const std::string& message) {
     std::cerr << "[ERROR] " << message << "\n";
-    std::cin.get();
-    exit(EXIT_FAILURE);
+    std::exit(EXIT_FAILURE);
 }
 
 bool util::CheckOpenGLError() {

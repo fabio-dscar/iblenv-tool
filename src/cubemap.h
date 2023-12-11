@@ -12,6 +12,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <image.h>
+
 namespace ibl {
 
 struct ImageFormat;
@@ -32,12 +34,13 @@ enum class CubeLayoutType {
     Separate = 3,
     VerticalSequence = 4,
     VerticalCross = 5,
-    Contiguous = 6
+    Custom = 6
 };
 
-void ExportCubemap(const std::string& filePath, CubeLayoutType type, const Texture& cube);
-std::unique_ptr<Texture> ImportCubeMap(const std::string& filePath, CubeLayoutType type,
-                                       ImageFormat* reqFmt);
+void ExportCubemap(const std::string& filePath, CubeLayoutType type,
+                    const CubeImage& cube);
+std::unique_ptr<CubeImage> ImportCubeMap(const std::string& filePath,
+                                          CubeLayoutType type, ImageFormat* reqFmt);
 
 } // namespace ibl
 

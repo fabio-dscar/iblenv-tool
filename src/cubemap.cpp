@@ -9,6 +9,7 @@
 
 #include <texture.h>
 #include <util.h>
+#include <fstream>
 
 using namespace ibl;
 using namespace ibl::util;
@@ -178,76 +179,95 @@ std::map<CubeLayoutType, MappingFunc> CubeMappings{
     {InvHorizontalCross, getMapping<InvHorizontalCross>()},
     {VerticalCross, getMapping<VerticalCross>()}};
 
-void ExportSeparate(const path& filePath, const Texture& cube) {
+void ExportSeparate(const path& filePath, const CubeImage& cube) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
-    auto NameOutput = [&](int face, int lvl) -> auto {
-        if (cube.levels > 1)
-            return std::format("{}_{}_{}{}", fname, FaceNames.at(face), lvl, ext);
+    auto NameOutput = [&](int face) -> auto {
         return std::format("{}_{}{}", fname, FaceNames.at(face), ext);
     };
 
-    for (int lvl = 0; lvl < cube.levels; ++lvl) {
-        for (const auto& [face, name] : FaceNames) {
-            auto faceImg = cube.face(face, lvl);
-
-            auto outName = NameOutput(face, lvl);
-            SaveImage(parent / outName, faceImg);
-        }
+    for (const auto& [face, name] : FaceNames) {
+        SaveMipmappedImage(parent / NameOutput(face), cube.face(face));
     }
 }
 
 // clang-format off
-void ExportCombined(const path& filePath, MappingFunc mapFunc, const Texture& cube) {
-    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+void ExportCombined(const path& filePath, MappingFunc mapFunc, const CubeImage& cube) {
+    ImageFormat cubeFmt = cube.imgFormat();
+    FaceMapping map = mapFunc(cubeFmt.width);
+    Image crossImg{{.width = map.width,
+                    .height = map.height,
+                    .numChannels = cubeFmt.numChannels,
+                    .compSize = cubeFmt.compSize,
+                    .levels = cube.levels()}};
 
-    auto NameOutput = [&](int lvl) -> auto {
-        if (cube.levels > 1)
-            return std::format("{}_{}{}", fname, lvl, ext);
-        return filePath.filename().string();
-    };
-
-    for (int lvl = 0; lvl < cube.levels; ++lvl) {
-        // Create cross image for this mip level
-        ImageFormat cubeFmt = cube.imgFormat(lvl);
-        FaceMapping map = mapFunc(cubeFmt.width);
-        Image crossImg{{.width = map.width,
-                        .height = map.height,
-                        .numChannels = cubeFmt.numChannels,
-                        .compSize = cubeFmt.compSize}};
+    for (int lvl = 0; lvl < cube.levels(); ++lvl) {
+        cubeFmt = cube.imgFormat(lvl);
+        map = mapFunc(cubeFmt.width);
 
         for (const auto& [face, coords] : map.mapping) {
             auto& [x, y] = coords;
 
             // Copy face image into portion of the cross/layout chosen
-            auto faceImg = cube.face(face, lvl);
+            auto& faceImg = cube.face(face);
             crossImg.copy({.toX = x, .toY = y,
                            .fromX = 0, .fromY = 0,
                            .sizeX = cubeFmt.width,
                            .sizeY = cubeFmt.height},
-                          faceImg, 0);
+                          faceImg, lvl, lvl);
         }
-
-        auto outName = NameOutput(lvl);
-        SaveImage(parent / outName, crossImg);
     }
+
+    SaveMipmappedImage(filePath, crossImg);
 }
 
-void ExportContiguous(const path& filePath, const Texture& cube) {
+struct CubeHeader {
+    char id[4] = {'C', 'U', 'B', 'E'};
+    unsigned int fmt;
+    unsigned int width;
+    unsigned int height;
+    unsigned int compSize;
+    unsigned int numChannels;
+    unsigned int totalSize;
+    unsigned int levels;
+};
+
+void SaveCubeFormat(const path& filePath, const Image& img) {
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+
+    auto imgFmt = img.format();
+
+    CubeHeader header;
+    header.fmt = 0;
+    header.width = imgFmt.width;
+    header.height = imgFmt.height;
+    header.compSize = imgFmt.compSize;
+    header.numChannels = imgFmt.numChannels;
+    header.totalSize = img.size();
+    header.levels = imgFmt.levels;
+
+    auto outName = std::format("{}{}", fname, ".cube");
+    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
+    file.write((const char*)&header, sizeof(CubeHeader));
+    file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
+    file.close();
+}
+
+void ExportCustom(const path& filePath, const CubeImage& cube) {
     auto cubeFmt = cube.imgFormat();
 
     auto mapping = CubeMappings.at(VerticalSequence);
-    auto map = mapping(cube.width);
+    auto map = mapping(cubeFmt.width);
 
     ImageFormat reqFmt{.width = map.width,
                        .height = map.height,
                        .numChannels = cubeFmt.numChannels,
                        .compSize = cubeFmt.compSize,
-                       .levels = cube.levels};
+                       .levels = cubeFmt.levels};
 
     Image fullImg{reqFmt};
 
-    for (int lvl = 0; lvl < cube.levels; ++lvl) {
+    for (int lvl = 0; lvl < cubeFmt.levels; ++lvl) {
         cubeFmt = cube.imgFormat(lvl);
         map = mapping(cubeFmt.width);
 
@@ -255,7 +275,7 @@ void ExportContiguous(const path& filePath, const Texture& cube) {
             auto& [x, y] = coords;
 
             // Copy face image into portion of the cross/layout chosen
-            auto faceImg = cube.face(face, lvl);
+            auto& faceImg = cube.face(face);
             fullImg.copy({.toX = x, .toY = y,
                           .fromX = 0, .fromY = 0,
                           .sizeX = cubeFmt.width,
@@ -264,12 +284,12 @@ void ExportContiguous(const path& filePath, const Texture& cube) {
         }
     }
 
-    SaveImage(filePath, fullImg);
+    SaveCubeFormat(filePath, fullImg);
 }
 // clang-format on
 
 void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
-                        const Texture& cube) {
+                        const CubeImage& cube) {
     using enum CubeLayoutType;
 
     switch (type) {
@@ -283,8 +303,8 @@ void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
     case VerticalCross:
         ExportCombined(filePath, CubeMappings.at(type), cube);
         break;
-    case Contiguous:
-        ExportContiguous(filePath, cube);
+    case Custom:
+        ExportCustom(filePath, cube);
         break;
     default:
         break;
@@ -298,29 +318,24 @@ auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
         return std::format("{}_{}{}", fname, FaceNames.at(face), ext);
     };
 
-    std::unique_ptr<Texture> texture = nullptr;
+    std::unique_ptr<CubeImage> cube = nullptr;
 
     for (const auto& [face, name] : FaceNames) {
         auto inputName = NameInput(face);
         auto imgFace = LoadImage(filePath, fmt);
-        auto cubeSide = imgFace->width;
 
-        if (!texture) {
-            auto intFormat = imgFace->compSize == 2 ? GL_RGB16F : GL_RGB32F;
-            texture = std::make_unique<Texture>(GL_TEXTURE_CUBE_MAP, intFormat, cubeSide,
-                                                MaxMipLevel(cubeSide));
-        }
+        if (!cube)
+            cube = std::make_unique<CubeImage>(imgFace->format());
 
-        texture->upload(*imgFace, face, 0);
+        cube->setFace(face, std::move(*imgFace));
     }
 
-    return texture;
+    return cube;
 }
 
 // clang-format off
 auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFunc,
                     ImageFormat* fmt) {
-
     auto srcImg = LoadImage(filePath, fmt);
 
     if (!ValidateMapping(type, srcImg->width, srcImg->height))
@@ -329,26 +344,23 @@ auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFu
     auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
     ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};
 
-    auto intFormat = srcImg->compSize == 2 ? GL_RGB16F : GL_RGB32F;
-    auto texture = std::make_unique<Texture>(GL_TEXTURE_CUBE_MAP, intFormat, cubeSide,
-                                             MaxMipLevel(cubeSide));
+    auto cube = std::make_unique<CubeImage>(faceFmt);
 
     FaceMapping map = mapFunc(cubeSide);
     for (const auto& [face, coords] : map.mapping) {
         auto& [x, y] = coords;
 
+        auto& cubeFace = cube->face(face);
+
         // Copy a portion from a cross/cube layout into new single face image
-        Image imgFace{faceFmt, *srcImg,
-                      {.toX = 0, .toY = 0,
+        cubeFace.copy({.toX = 0, .toY = 0,
                        .fromX = x, .fromY = y,
                        .sizeX = faceFmt.width,
-                       .sizeY = faceFmt.height},
-                      0};
-
-        texture->upload(imgFace, face, 0);
+                       .sizeY = faceFmt.height}, 
+                      *srcImg);
     }
 
-    return texture;
+    return cube;
 }
 
 auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc mapFunc,
@@ -356,12 +368,12 @@ auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc
 
     auto results = SearchDirForLevels(filePath);
     if (!results)
-        return std::unique_ptr<Texture>(nullptr);
+        return std::unique_ptr<CubeImage>(nullptr);
 
     auto fileList = results.value();
     int numLevels = fileList.size();
 
-    std::unique_ptr<Texture> texture = nullptr;
+    std::unique_ptr<CubeImage> cube = nullptr;
 
     for (const auto& [lvl, name] : fileList) {
         auto srcImg = LoadImage(name, fmt);
@@ -372,34 +384,30 @@ auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc
         auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
         ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};
 
-        if (!texture) {
-            auto intFormat = srcImg->compSize == 2 ? GL_RGB16F : GL_RGB32F;
-            texture = std::make_unique<Texture>(GL_TEXTURE_CUBE_MAP, intFormat, cubeSide,
-                                                numLevels);
+        if (!cube) {
+            cube = std::make_unique<CubeImage>(faceFmt, numLevels);
         }
 
         FaceMapping map = mapFunc(cubeSide);
         for (const auto& [face, coords] : map.mapping) {
             auto& [x, y] = coords;
 
-            // Copy a portion from a cross/cube layout into new single face image
-            Image imgFace{faceFmt, *srcImg,
-                          {.toX = 0, .toY = 0,
+            // Copy a portion from a cross/cube layout into a single face image
+            auto& cubeFace = cube->face(face);
+            cubeFace.copy({.toX = 0, .toY = 0,
                            .fromX = x, .fromY = y,
                            .sizeX = faceFmt.width,
-                           .sizeY = faceFmt.height},
-                          lvl};
-
-            texture->upload(imgFace, face, lvl);
+                           .sizeY = faceFmt.height}, 
+                          *srcImg, lvl);
         }
     }
 
-    return texture;
+    return cube;
 }
 // clang-format on
 
-std::unique_ptr<Texture> ibl::ImportCubeMap(const std::string& filePath,
-                                            CubeLayoutType type, ImageFormat* reqFmt) {
+std::unique_ptr<CubeImage> ibl::ImportCubeMap(const std::string& filePath,
+                                              CubeLayoutType type, ImageFormat* reqFmt) {
     using enum CubeLayoutType;
     switch (type) {
     case Separate:
@@ -410,8 +418,6 @@ std::unique_ptr<Texture> ibl::ImportCubeMap(const std::string& filePath,
     case InvHorizontalCross:
     case VerticalCross:
         return ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
-    case Contiguous:
-        return nullptr; // TODO
     default:
         return nullptr;
     };
