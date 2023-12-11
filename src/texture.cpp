@@ -31,7 +31,7 @@ Texture::~Texture() {
 }
 
 void Texture::init(unsigned int format, const SamplerOpts& sampler) {
-        auto pair = TexFormatInfo.find(format);
+    auto pair = TexFormatInfo.find(format);
     if (pair == TexFormatInfo.end())
         util::ExitWithError("Unsupported internal format {}", format);
 
@@ -100,7 +100,7 @@ std::unique_ptr<CubeImage> Texture::cubemap() const {
 
     auto cube = std::make_unique<CubeImage>(imgFmt);
     for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
-        Image faceImg{imgFormat()};
+        Image faceImg{imgFmt};
         for (int lvl = 0; lvl < levels; ++lvl)
             faceImg.copy(face(faceIdx, lvl), lvl);
         cube->setFace(faceIdx, std::move(faceImg));

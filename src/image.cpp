@@ -1,5 +1,7 @@
 #include <image.h>
 
+#include <texture.h>
+
 using namespace ibl;
 
 Image::Image(const ImageFormat& format)
@@ -30,7 +32,7 @@ Image::Image(const ImageFormat& format, std::unique_ptr<std::byte[]> imgPtr)
 
 std::byte* Image::data(int lvl) const {
     auto fmt = format();
-    fmt.levels = std::max(lvl - 1, 0);
+    fmt.levels = std::max(lvl, 0);
     std::size_t prevLvlSize = ImageSize(fmt);
     return &imgData.get()[prevLvlSize];
 }
@@ -57,30 +59,31 @@ std::size_t Image::size() const {
     return totalSize;
 }
 
-void Image::copy(int dstX, int dstY, int srcX, int srcY, int lenX, int lenY, int toLevel,
-                 const Image& src) {
+void Image::copy(int dstX, int dstY, int srcX, int srcY, int lenX, int lenY, int toLvl,
+                 int fromLvl, const Image& src) {
     assert(src.compSize == compSize);
     assert(src.numChan == numChan);
 
     const std::size_t nRows = lenY;
     const std::size_t pxSize = pixelSize();
 
-    auto* srcPtr = src.pixel(srcX, srcY);
-    auto* dstPtr = pixel(dstX, dstY, toLevel);
-    for (std::size_t r = 0; r < nRows; ++r) {
+    auto dstOffset = pxSize * std::max(width >> toLvl, 1);
+    auto srcOffset = pxSize * std::max(src.width >> fromLvl, 1);
+
+    auto* srcPtr = src.pixel(srcX, srcY, fromLvl);
+    auto* dstPtr = pixel(dstX, dstY, toLvl);
+    for (std::size_t r = 0; r < nRows; ++r, srcPtr += srcOffset, dstPtr += dstOffset) {
         std::memcpy(dstPtr, srcPtr, lenX * pxSize);
-        srcPtr += pxSize * src.width;
-        dstPtr += pxSize * width;
     }
 }
 
-void Image::copy(CopyExtents params, const Image& src, int toLevel) {
+void Image::copy(CopyExtents params, const Image& src, int toLvl, int fromLvl) {
     copy(params.toX, params.toY, params.fromX, params.fromY, params.sizeX, params.sizeY,
-         toLevel, src);
+         toLvl, fromLvl, src);
 }
 
-void Image::copy(const Image& src, int toLevel) {
-    copy(0, 0, 0, 0, src.width, src.height, toLevel, src);
+void Image::copy(const Image& src, int toLvl, int fromLvl) {
+    copy(0, 0, 0, 0, src.width, src.height, toLvl, fromLvl, src);
 }
 
 void Image::copy(const RawImage& src) {

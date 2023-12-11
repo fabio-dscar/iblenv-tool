@@ -63,7 +63,7 @@ public:
     ImageFormat imgFormat(int level = 0) const;
 
     Image image(int level = 0) const { 
-        return {imgFormat(level), data(levels)}; 
+        return {imgFormat(level), data(level)}; 
     }
 
     Image face(int face, int level = 0) const {

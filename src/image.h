@@ -44,9 +44,9 @@ public:
 
     void copy(const RawImage& src);
     void copy(int dstX, int dstY, int srcX, int srcY, int lenX, int lenY, int toLvl,
-              const Image& src);
-    void copy(CopyExtents extents, const Image& src, int toLvl = 0);
-    void copy(const Image& src, int toLvl = 0);
+              int fromLvl, const Image& src);
+    void copy(CopyExtents extents, const Image& src, int toLvl = 0, int fromLvl = 0);
+    void copy(const Image& src, int toLvl = 0, int fromLvl = 0);
 
     std::byte* data(int lvl = 0) const;
     std::byte* pixel(int x, int y, int lvl = 0) const;
@@ -86,25 +86,12 @@ public:
             face = Image{format};
     }
 
-    Image& face(int face) {
-        return faces[face];
-    }
+    Image& face(int face) { return faces[face]; }
+    const Image& face(int face) const { return faces[face]; }
+    void setFace(int face, Image src) { faces[face] = std::move(src); }
 
-    const Image& face(int face) const {
-        return faces[face];
-    }
-
-    void setFace(int face, Image src) {
-        faces[face] = std::move(src);
-    }
-
-    ImageFormat imgFormat(int level = 0) const {
-        return faces[0].format(level);
-    }
-
-    int levels() const {
-        return faces[0].levels;
-    }
+    ImageFormat imgFormat(int level = 0) const { return faces[0].format(level); }
+    int levels() const { return faces[0].levels; }
 
     std::array<Image, 6> faces;
 };
@@ -115,8 +102,7 @@ struct SpanExtents {
     int lvl = 0;
 };
 
-// Non owning reference to an image (including all levels),
-// one image level or a portion of an image level
+// Non owning reference to an image (including all levels) or one image level
 class ImageSpan {
 public:
     ImageSpan(const Image& image);
