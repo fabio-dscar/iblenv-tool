@@ -20,7 +20,7 @@ void Shader::handleIncludes() {
             ExitWithError("Recursively including '{}' at '{}'.", file, name);
 
         auto filePath = ShaderFolder / file;
-        auto src = util::ReadFile(filePath, std::ios_base::in);
+        auto src = util::ReadTextFile(filePath, std::ios_base::in);
         if (!src)
             ExitWithError("Couldn't open included file '{}' in '{}'", file, name);
 
@@ -126,7 +126,7 @@ Shader ibl::LoadShaderFile(const std::string& fileName) {
 
 Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
     auto filePath = ShaderFolder / fileName;
-    auto source = util::ReadFile(ShaderFolder / fileName, std::ios_base::in);
+    auto source = util::ReadTextFile(ShaderFolder / fileName, std::ios_base::in);
     if (!source.has_value())
         ExitWithError("Couldn't load shader file {}", filePath.string());
 

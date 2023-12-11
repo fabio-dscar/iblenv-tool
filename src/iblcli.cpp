@@ -81,7 +81,7 @@ void ibl::Cleanup() {
 
 void ibl::ComputeBRDF(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
-    auto shaders = std::vector{"brdf.vert"s, "brdf.frag"s};
+    auto shaders = std::array{"brdf.vert"s, "brdf.frag"s};
     auto program = CompileAndLinkProgram("brdf", shaders, defines);
 
     GLenum intFormat = opts.useHalf ? GL_RG16F : GL_RG32F;
@@ -112,10 +112,13 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
                                                      int cubeSize, float degs,
                                                      bool swapHand) {
 
-    auto shaders = std::vector{"convert.vert"s, "convert.frag"s};
+    auto shaders = std::array{"convert.vert"s, "convert.frag"s};
     auto program = CompileAndLinkProgram("convert", shaders);
 
     auto img = util::LoadImage(filePath);
+    if ((img->width / 2) != img->height)
+        util::ExitWithError("Input is not an equirectangular mapping.");
+
     Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, img->width, img->height, {}};
     rectMap.upload(*img);
 
@@ -151,25 +154,30 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
 }
 
 auto LoadEnvironment(const CliOptions& opts, ImageFormat* reqFmt = nullptr) {
-    using enum CubeLayoutType;
-
     if (opts.isInputEquirect)
         return SphericalProjToCubemap(opts.inFile, opts.texSize);
 
-    return ImportCubeMap(opts.inFile, HorizontalCross, reqFmt);
+    auto cube = ImportCubeMap(opts.inFile, opts.importType, reqFmt);
+    return std::make_unique<Texture>(*cube);
 }
 
 void ibl::ConvertToCubemap(const CliOptions& opts) {
-    auto cubemap = LoadEnvironment(opts);
-    if (opts.isInputEquirect)
-        cubemap->levels = 1; // Only export level 0
+    std::unique_ptr<CubeImage> cube;
+    if (opts.isInputEquirect) {
+        // Convert to cubemap and then retrieve data from gpu
+        auto cubeTex = SphericalProjToCubemap(opts.inFile, opts.texSize);
+        cubeTex->levels = 1;
+        cube = cubeTex->cubemap();
+    } else {
+        cube = ImportCubeMap(opts.inFile, opts.importType, nullptr);
+    }
 
-    ExportCubemap(opts.outFile, opts.exportType, *cubemap);
+    ExportCubemap(opts.outFile, opts.exportType, *cube);
 }
 
 void ibl::ComputeIrradiance(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
-    auto shaders = std::vector{"convert.vert"s, "irradiance.frag"s};
+    auto shaders = std::array{"convert.vert"s, "irradiance.frag"s};
     auto program = CompileAndLinkProgram("irradiance", shaders, defines);
 
     auto envMap = LoadEnvironment(opts);
@@ -203,12 +211,12 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
         RenderCube();
     }
 
-    ExportCubemap(opts.outFile, opts.exportType, irradiance);
+    ExportCubemap(opts.outFile, opts.exportType, *irradiance.cubemap());
 }
 
 void ibl::ComputeConvolution(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
-    auto shaders = std::vector{"convert.vert"s, "convolution.frag"s};
+    auto shaders = std::array{"convert.vert"s, "convolution.frag"s};
     auto program = CompileAndLinkProgram("convolution", shaders, defines);
 
     auto envMap = LoadEnvironment(opts);
@@ -252,7 +260,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
         }
     }
 
-    ExportCubemap(opts.outFile, opts.exportType, convMap);
+    ExportCubemap(opts.outFile, opts.exportType, *convMap.cubemap());
 }
 
 std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
@@ -260,18 +268,19 @@ std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
 
     using enum Mode;
     switch (opts.mode) {
-    case BRDF:
+    case Brdf:
         if (opts.multiScattering)
             defines.emplace_back("MULTISCATTERING");
+
         if (opts.flipUv)
             defines.emplace_back("FLIP_V");
         break;
 
-    case IRRADIANCE:
+    case Irradiance:
         if (opts.divideLambertConstant)
             defines.emplace_back("DIVIDED_PI");
 
-    case CONVOLUTION:
+    case Convolution:
         if (opts.usePrefilteredIS)
             defines.emplace_back("PREFILTERED_IS");
         break;

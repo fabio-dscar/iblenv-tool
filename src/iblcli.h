@@ -33,18 +33,18 @@ std::unique_ptr<Texture> SphericalProjToCubemap(const std::string& filePath, int
                                                 bool swapHandedness = false);
 
 inline void ExecuteJob(const CliOptions& opts) {
-    if (opts.mode == Mode::UNKNOWN)
+    if (opts.mode == Mode::Unknown)
         ibl::util::ExitWithError("Unknown option.");
 
     InitOpenGL();
 
-    if (opts.mode == Mode::BRDF)
+    if (opts.mode == Mode::Brdf)
         ComputeBRDF(opts);
-    else if (opts.mode == Mode::CONVERT)
+    else if (opts.mode == Mode::Convert)
         ConvertToCubemap(opts);
-    else if (opts.mode == Mode::IRRADIANCE)
+    else if (opts.mode == Mode::Irradiance)
         ComputeIrradiance(opts);
-    else if (opts.mode == Mode::CONVOLUTION)
+    else if (opts.mode == Mode::Convolution)
         ComputeConvolution(opts);
 
     Cleanup();

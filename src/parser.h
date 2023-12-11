@@ -6,12 +6,12 @@
 
 namespace ibl {
 
-enum class Mode { UNKNOWN, BRDF, IRRADIANCE, CONVERT, CONVOLUTION };
+enum class Mode { Unknown, Brdf, Irradiance, Convert, Convolution };
 
 struct CliOptions {
-    Mode mode = Mode::UNKNOWN;
-    CubeLayoutType exportType;
+    Mode mode = Mode::Unknown;
     CubeLayoutType importType;
+    CubeLayoutType exportType;
     std::string outFile;
     std::string inFile;
     unsigned int numSamples;
@@ -27,6 +27,6 @@ struct CliOptions {
 
 CliOptions ParseArgs(int argc, char* argv[]);
 
-}
+} // namespace ibl
 
 #endif // __IBL_PARSER_H__

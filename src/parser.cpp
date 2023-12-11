@@ -8,6 +8,8 @@
 using namespace ibl;
 using namespace std::filesystem;
 
+using namespace argparse;
+
 bool IsSupportedFormat(const path& filePath) {
     const static std::vector formats{".exr", ".hdr", ".bin"};
     auto ext = filePath.extension();
@@ -24,62 +26,85 @@ void ValidateOptions(const CliOptions& opts) {
     if (!IsSupportedFormat(opts.outFile))
         util::ExitWithError("Output file {} has unsupported format.", opts.outFile);
 
-    if (opts.mode == Mode::BRDF) {
+    if (!exists(opts.inFile))
+        util::ExitWithError("Input file {} doesn't exist.", opts.inFile);
+
+    if (opts.mode == Mode::Brdf) {
         if (path(opts.outFile).extension() == ".hdr")
             util::ExitWithError("Exporting the brdf in .hdr format is not supported.");
     }
 }
 
-CliOptions BuildOptions(argparse::ArgumentParser& p) {
+CliOptions BuildOptions(ArgumentParser& p) {
     CliOptions opts;
 
-    auto& brdfMode = p.at<argparse::ArgumentParser>("brdf");
-    if (p.is_subcommand_used(brdfMode)) {
-        opts.mode = Mode::BRDF;
-        opts.numSamples = brdfMode.get<unsigned int>("--spp");
+    auto& brdfMode = p.at<ArgumentParser>("brdf");
+    auto& convertMode = p.at<ArgumentParser>("convert");
+    auto& irradianceMode = p.at<ArgumentParser>("irradiance");
+    auto& convolutionMode = p.at<ArgumentParser>("convolution");
+
+    bool usedBrdf = p.is_subcommand_used(brdfMode);
+    bool usedConvert = p.is_subcommand_used(convertMode);
+    bool usedIrr = p.is_subcommand_used(irradianceMode);
+    bool usedConv = p.is_subcommand_used(convolutionMode);
+
+    if (usedBrdf) {
+        opts.mode = Mode::Brdf;
+        opts.outFile = brdfMode.get("out");
         opts.texSize = brdfMode.get<int>("-s");
+        opts.numSamples = brdfMode.get<unsigned int>("--spp");
         opts.multiScattering = brdfMode.get<bool>("--ms");
-        opts.outFile = brdfMode.get("-o");
         opts.useHalf = !brdfMode.get<bool>("--use32f");
         opts.flipUv = brdfMode.get<bool>("--flip-v");
         return opts;
     }
 
-    auto& convertMode = p.at<argparse::ArgumentParser>("convert");
-    if (p.is_subcommand_used(convertMode)) {
-        opts.mode = Mode::CONVERT;
+    if (usedConvert) {
+        opts.mode = Mode::Convert;
+        opts.inFile = convertMode.get("input");
+        opts.outFile = convertMode.get("out");
         opts.texSize = convertMode.get<int>("-s");
-        opts.inFile = convertMode.get("-i");
-        opts.outFile = convertMode.get("-o");
-        opts.isInputEquirect = true;
-        opts.exportType = CubeLayoutType::HorizontalCross;
+
+        auto inType = convertMode.get<int>("--it");
+        opts.isInputEquirect = inType == -1;
+        if (!opts.isInputEquirect)
+            opts.importType = static_cast<CubeLayoutType>(inType);
+        opts.exportType = static_cast<CubeLayoutType>(convertMode.get<int>("--ot"));
         return opts;
     }
 
-    auto& irradianceMode = p.at<argparse::ArgumentParser>("irradiance");
-    if (p.is_subcommand_used(irradianceMode)) {
-        opts.mode = Mode::IRRADIANCE;
+    if (usedIrr) {
+        opts.mode = Mode::Irradiance;
+        opts.inFile = irradianceMode.get("input");
+        opts.outFile = irradianceMode.get("out");
         opts.texSize = irradianceMode.get<int>("-s");
-        opts.inFile = irradianceMode.get("-i");
-        opts.outFile = irradianceMode.get("-o");
+
+        auto inType = irradianceMode.get<int>("--it");
+        opts.isInputEquirect = inType == -1;
+        if (!opts.isInputEquirect)
+            opts.importType = static_cast<CubeLayoutType>(inType);
+        opts.exportType = static_cast<CubeLayoutType>(irradianceMode.get<int>("--ot"));
+
         opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
         opts.numSamples = irradianceMode.get<unsigned int>("--spp");
-        opts.isInputEquirect = false; // irradianceMode.get("-t") == "equirect";
-        opts.exportType = CubeLayoutType::HorizontalCross;
         return opts;
     }
 
-    auto& convolutionMode = p.at<argparse::ArgumentParser>("convolution");
-    if (p.is_subcommand_used(convolutionMode)) {
-        opts.mode = Mode::CONVOLUTION;
+    if (usedConv) {
+        opts.mode = Mode::Convolution;
+        opts.inFile = convolutionMode.get("input");
+        opts.outFile = convolutionMode.get("out");
         opts.texSize = convolutionMode.get<int>("-s");
-        opts.inFile = convolutionMode.get("-i");
-        opts.outFile = convolutionMode.get("-o");
+
+        auto inType = convolutionMode.get<int>("--it");
+        opts.isInputEquirect = inType == -1;
+        if (!opts.isInputEquirect)
+            opts.importType = static_cast<CubeLayoutType>(inType);
+        opts.exportType = static_cast<CubeLayoutType>(convolutionMode.get<int>("--ot"));
+
         opts.usePrefilteredIS = !convolutionMode.get<bool>("--no-prefiltered");
         opts.numSamples = convolutionMode.get<unsigned int>("--spp");
         opts.mipLevels = convolutionMode.get<int>("-l");
-        opts.isInputEquirect = false; // convolutionMode.get("-t") == "equirect";
-        opts.exportType = CubeLayoutType::HorizontalCross;
         return opts;
     }
 
@@ -87,11 +112,58 @@ CliOptions BuildOptions(argparse::ArgumentParser& p) {
 }
 
 CliOptions ibl::ParseArgs(int argc, char* argv[]) {
-    argparse::ArgumentParser program("iblenv", "1.0");
+    /* --------------  Shared -------------- */
+    ArgumentParser inOut("inout", "", default_arguments::none);
+    inOut.add_argument("input").help("Specifies the input file.").nargs(1);
+    inOut.add_argument("out").help("Output filename.").nargs(1);
+    inOut.add_argument("--it")
+        .help("Type of cubemap mapping for input file.")
+        .nargs(1)
+        .default_value(-1)
+        .choices(-1, 0, 1, 2, 3, 4, 5, 6)
+        .scan<'d', int>();
+    inOut.add_argument("--ot")
+        .help("Type of cubemap mapping for output file.")
+        .nargs(1)
+        .default_value(0)
+        .choices(0, 1, 2, 3, 4, 5, 6)
+        .scan<'d', int>();
+    inOut.add_argument("-s", "--cubeSize")
+        .help("Specifies the size of the cubemap.")
+        .nargs(1)
+        .default_value(1024)
+        .scan<'d', int>();
+
+    ArgumentParser sampled("sampled", "", default_arguments::none);
+    sampled.add_argument("--no-prefiltered")
+        .help("Disables prefiltered importance sampling.")
+        .nargs(0)
+        .implicit_value(true)
+        .default_value(false);
+    sampled.add_argument("--spp")
+        .help("Specifies the number of samples per pixel.")
+        .nargs(1)
+        .default_value(2048u)
+        .scan<'u', unsigned int>();
+
+    /* --------------  Program -------------- */
+    ArgumentParser program("iblenv", "1.0");
     program.add_description("ibl tool");
 
-    argparse::ArgumentParser brdfCmd("brdf");
-    brdfCmd.add_description("Computes microfacet brdf into a lookup table.");
+    ArgumentParser brdfCmd("brdf");
+    brdfCmd.add_description("Computes microfacet brdf into a lookup texture.");
+    brdfCmd.add_argument("out")
+        .help("Filename for output file. By default dumps the bytes raw out of OpenGL "
+              "('bin' extension).")
+        .nargs(1)
+        .default_value("brdf.bin");
+
+    brdfCmd.add_argument("-s", "--texsize")
+        .help("Specifies the width and height of the output texture.")
+        .nargs(1)
+        .default_value(1024)
+        .scan<'i', int>();
+
     brdfCmd.add_argument("--spp")
         .help("Specifies the number of samples per pixel.")
         .nargs(1)
@@ -103,12 +175,6 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .nargs(0)
         .implicit_value(true)
         .default_value(false);
-
-    brdfCmd.add_argument("-s", "--texsize")
-        .help("Specifies the width and height of the output texture.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
 
     brdfCmd.add_argument("--ms")
         .help("Apply multiscattering precomputation.")
@@ -123,94 +189,25 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .implicit_value(true)
         .default_value(false);
 
-    brdfCmd.add_argument("-o", "--outFile")
-        .help("Filename for output file. By default dumps the bytes raw out of OpenGL "
-              "('bin' extension).")
-        .nargs(1)
-        .default_value("brdf.bin");
-
-
-
-    argparse::ArgumentParser convert("convert");
+    ArgumentParser convert("convert");
     convert.add_description("");
-    convert.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
+    convert.add_parents(inOut);
 
-    convert.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    convert.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
-
-    argparse::ArgumentParser irradiance("irradiance");
+    ArgumentParser irradiance("irradiance");
     irradiance.add_description("");
-    irradiance.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
+    irradiance.add_parents(inOut, sampled);
 
-    irradiance.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    irradiance.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
-
-    irradiance.add_argument("--no-prefiltered")
-        .help("Disables prefiltered importance sampling.")
-        .nargs(0)
-        .default_value(false);
-
-    irradiance.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
-        .nargs(1)
-        .default_value(2048u)
-        .scan<'u', unsigned int>();
-
-    irradiance.add_argument("-t", "--input-type")
-        .help("Specifies the type of input.")
-        .nargs(1)
-        .default_value("equirect");
-
-    argparse::ArgumentParser convolution("convolution");
+    ArgumentParser convolution("convolution");
     convolution.add_description("");
-    convolution.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
-        .nargs(1)
-        .default_value(1024)
-        .scan<'i', int>();
+    convolution.add_parents(inOut, sampled);
+
     convolution.add_argument("-l", "--levels")
         .help("Specifies the number of levels in the output cubemap.")
         .nargs(1)
         .default_value(9)
         .scan<'i', int>();
 
-    convolution.add_argument("--no-prefiltered")
-        .help("Disables prefiltered importance sampling.")
-        .nargs(0)
-        .default_value(false);
-    convolution.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
-        .nargs(1)
-        .default_value(2048u)
-        .scan<'u', unsigned int>();
-
-    convolution.add_argument("-i", "--input").help("Specifies the input file.").nargs(1);
-
-    convolution.add_argument("-t", "--input-type")
-        .help("Specifies the type of input.")
-        .nargs(1)
-        .default_value("equirect");
-
-    convolution.add_argument("-o", "--outFile")
-        .help("Output filename.")
-        .nargs(1)
-        .default_value("");
+    /* -------------------------------------- */
 
     program.add_subparser(brdfCmd);
     program.add_subparser(convert);
