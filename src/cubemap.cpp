@@ -254,37 +254,29 @@ void SaveCubeFormat(const path& filePath, const Image& img) {
 }
 
 void ExportCustom(const path& filePath, const CubeImage& cube) {
-    auto cubeFmt = cube.imgFormat();
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
-    auto mapping = CubeMappings.at(VerticalSequence);
-    auto map = mapping(cubeFmt.width);
+    auto imgFmt = cube.imgFormat();
 
-    ImageFormat reqFmt{.width = map.width,
-                       .height = map.height,
-                       .numChannels = cubeFmt.numChannels,
-                       .compSize = cubeFmt.compSize,
-                       .levels = cubeFmt.levels};
+    CubeHeader header;
+    header.fmt = 0;
+    header.width = imgFmt.width;
+    header.height = imgFmt.height;
+    header.compSize = imgFmt.compSize;
+    header.numChannels = imgFmt.numChannels;
+    header.totalSize = cube.face(0).size() * 6;
+    header.levels = cube.levels();
 
-    Image fullImg{reqFmt};
+    auto outName = std::format("{}{}", fname, ".cube");
+    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
+    file.write((const char*)&header, sizeof(CubeHeader));
 
-    for (int lvl = 0; lvl < cubeFmt.levels; ++lvl) {
-        cubeFmt = cube.imgFormat(lvl);
-        map = mapping(cubeFmt.width);
-
-        for (const auto& [face, coords] : map.mapping) {
-            auto& [x, y] = coords;
-
-            // Copy face image into portion of the cross/layout chosen
-            auto& faceImg = cube.face(face);
-            fullImg.copy({.toX = x, .toY = y,
-                          .fromX = 0, .fromY = 0,
-                          .sizeX = cubeFmt.width,
-                          .sizeY = cubeFmt.height},
-                         faceImg, lvl);
-        }
+    for (int face = 0; face < 6; ++face) {
+        auto& faceImg =  cube.face(face);
+        file.write(reinterpret_cast<const char*>(faceImg.data()), faceImg.size());
     }
 
-    SaveCubeFormat(filePath, fullImg);
+    file.close();
 }
 // clang-format on
 

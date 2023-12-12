@@ -141,7 +141,7 @@ void SaveImgFormatImage(const path& filePath, const ImageSpan& img) {
     header.levels = imgFmt.levels;
 
     auto outName = std::format("{}{}", fname, ".img");
-    std::ofstream file(fname, std::ios_base::out | std::ios_base::binary);
+    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
     file.write((const char*)&header, sizeof(ImgHeader));
     file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
     file.close();
