@@ -16,13 +16,13 @@ void Shader::handleIncludes() {
 
     while (std::regex_search(source, smatch, rgx)) {
         auto file = smatch[1].str();
-        if (std::find(processed.begin(), processed.end(), file) != processed.end())
-            ExitWithError("Recursively including '{}' at '{}'.", file, name);
+        if (std::find(processed.begin(), processed.end(), file) != processed.end()) 
+            FATAL("Repeated/Recursively including '{}' at '{}'.", file, name);
 
         auto filePath = ShaderFolder / file;
         auto src = util::ReadTextFile(filePath, std::ios_base::in);
         if (!src)
-            ExitWithError("Couldn't open included file '{}' in '{}'", file, name);
+            FATAL("Couldn't open included shader '{}' in '{}'", file, name);
 
         source.replace(smatch.position(), smatch.length(), src.value());
 
@@ -33,7 +33,7 @@ void Shader::handleIncludes() {
 void Shader::compile(const std::string& defines) {
     handle = glCreateShader(type);
     if (handle == 0)
-        ExitWithError("Could not create shader {}", name);
+        FATAL("Could not create shader {}", name);
 
     const char* sources[] = {defines.c_str(), source.c_str()};
     glShaderSource(handle, 2, sources, 0);
@@ -43,7 +43,7 @@ void Shader::compile(const std::string& defines) {
     glGetShaderiv(handle, GL_COMPILE_STATUS, &result);
     if (result != GL_TRUE) {
         std::string message = GetShaderLog(handle);
-        ExitWithError("Shader {} compilation log:\n{}", name, message);
+        FATAL("Shader {} compilation log:\n{}", name, message);
     }
 }
 
@@ -60,7 +60,7 @@ void Program::link() {
     handle = glCreateProgram();
     if (handle == 0) {
         std::string message = GetProgramError(handle);
-        ExitWithError("Could not create program {}", name);
+        FATAL("Could not create program {}", name);
     }
 
     for (GLuint sid : srcHandles)
@@ -75,7 +75,7 @@ void Program::link() {
             glDetachShader(handle, sid);
 
         std::string message = GetProgramError(handle);
-        ExitWithErrorMsg(message);
+        FATAL("Program linking error: {}", message);
     }
 
     // Detach shaders after successful linking
@@ -119,7 +119,7 @@ Shader ibl::LoadShaderFile(const std::string& fileName) {
     else if (ext == ".vert" || ext == ".vs")
         type = VERTEX_SHADER;
     else
-        ExitWithError("Couldn't deduce type for shader: {}", fileName);
+        FATAL("Couldn't deduce type for shader: {}", fileName);
 
     return LoadShaderFile(type, fileName);
 }
@@ -128,7 +128,7 @@ Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
     auto filePath = ShaderFolder / fileName;
     auto source = util::ReadTextFile(ShaderFolder / fileName, std::ios_base::in);
     if (!source.has_value())
-        ExitWithError("Couldn't load shader file {}", filePath.string());
+        FATAL("Couldn't load shader file {}", filePath.string());
 
     return {filePath.filename(), type, source.value()};
 }

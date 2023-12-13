@@ -232,27 +232,6 @@ struct CubeHeader {
     unsigned int levels;
 };
 
-void SaveCubeFormat(const path& filePath, const Image& img) {
-    const auto& [parent, fname, ext] = SplitFilePath(filePath);
-
-    auto imgFmt = img.format();
-
-    CubeHeader header;
-    header.fmt = 0;
-    header.width = imgFmt.width;
-    header.height = imgFmt.height;
-    header.compSize = imgFmt.compSize;
-    header.numChannels = imgFmt.numChannels;
-    header.totalSize = img.size();
-    header.levels = imgFmt.levels;
-
-    auto outName = std::format("{}{}", fname, ".cube");
-    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
-    file.write((const char*)&header, sizeof(CubeHeader));
-    file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
-    file.close();
-}
-
 void ExportCustom(const path& filePath, const CubeImage& cube) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
@@ -331,7 +310,7 @@ auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFu
     auto srcImg = LoadImage(filePath, fmt);
 
     if (!ValidateMapping(type, srcImg->width, srcImg->height))
-        ExitWithError("Provided cubemap layout type does not match input file.");
+        FATAL("Provided cubemap layout type does not match input file.");
 
     auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
     ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};
@@ -371,7 +350,7 @@ auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc
         auto srcImg = LoadImage(name, fmt);
 
         if (!ValidateMapping(type, srcImg->width, srcImg->height))
-            ExitWithError("Provided cubemap layout type does not match input file.");
+            FATAL("Provided cubemap layout type does not match input file.");
 
         auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
         ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};

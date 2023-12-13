@@ -33,7 +33,7 @@ Texture::~Texture() {
 void Texture::init(unsigned int format, const SamplerOpts& sampler) {
     auto pair = TexFormatInfo.find(format);
     if (pair == TexFormatInfo.end())
-        util::ExitWithError("Unsupported internal format {}", format);
+        FATAL("Unsupported internal format {}", format);
 
     info = &pair->second;
 

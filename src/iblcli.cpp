@@ -23,39 +23,41 @@
 #include <cubemap.h>
 
 using namespace ibl;
+using namespace ibl::util;
 using namespace std::literals;
 
 GLFWwindow* window;
 
 void ibl::InitOpenGL() {
     if (!glfwInit())
-        util::ExitWithError("Couldn't initialize OpenGL context.");
+        FATAL("Couldn't initialize OpenGL context.");
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
     if (!window) {
         glfwTerminate();
-        util::ExitWithError("Couldn't create GLFW window.");
+        FATAL("Couldn't create GLFW window.");
     }
     glfwMakeContextCurrent(window);
 
     int glver = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     if (glver == 0)
-        util::ExitWithError("Failed to initialize OpenGL context");
+        FATAL("Failed to initialize OpenGL context");
 
+#ifdef DEBUG
     glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(ibl::util::OpenGLErrorCallback, 0);
-    glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER, GL_DONT_CARE, 0, 0,
-                          GL_FALSE);
+    glDebugMessageCallback(OpenGLErrorCallback, 0);
+#endif
 
     // Print system info
-    const GLubyte* renderer = glGetString(GL_RENDERER);
-    const GLubyte* vendor = glGetString(GL_VENDOR);
-    const GLubyte* version = glGetString(GL_VERSION);
-    const GLubyte* glslVersion = glGetString(GL_SHADING_LANGUAGE_VERSION);
-    std::cout << "OpenGL Renderer: " << renderer << " (" << vendor << ")\n";
-    std::cout << "OpenGL version " << version << '\n';
-    std::cout << "GLSL version " << glslVersion << "\n\n";
+    auto renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    auto vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+    auto version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    auto glslVer =
+        reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+    Print("OpenGL Renderer: {} ({})", renderer, vendor);
+    Print("OpenGL Version: {}", version);
+    Print("GLSL Version: {}\n", glslVer);
 
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glEnable(GL_DEPTH_TEST);
@@ -80,6 +82,9 @@ void ibl::Cleanup() {
 }
 
 void ibl::ComputeBRDF(const CliOptions& opts) {
+    Print("Computing BRDF to {} 2-channel {}x{} float texture",
+          opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.texSize);
+
     auto defines = GetShaderDefines(opts);
     auto shaders = std::array{"brdf.vert"s, "brdf.frag"s};
     auto program = CompileAndLinkProgram("brdf", shaders, defines);
@@ -100,7 +105,7 @@ void ibl::ComputeBRDF(const CliOptions& opts) {
 
     RenderQuad();
 
-    util::SaveImage(opts.outFile, brdfLUT.image());
+    SaveImage(opts.outFile, brdfLUT.image());
 }
 
 glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
@@ -111,13 +116,14 @@ glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
 std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath,
                                                      int cubeSize, float degs,
                                                      bool swapHand) {
+    Print("Converting spherical projection [to {}px cube]", cubeSize);
 
     auto shaders = std::array{"convert.vert"s, "convert.frag"s};
     auto program = CompileAndLinkProgram("convert", shaders);
 
     auto img = util::LoadImage(filePath);
     if ((img->width / 2) != img->height)
-        util::ExitWithError("Input is not an equirectangular mapping.");
+        FATAL("Input is not an equirectangular mapping.");
 
     Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, img->width, img->height, {}};
     rectMap.upload(*img);
@@ -172,6 +178,8 @@ void ibl::ConvertToCubemap(const CliOptions& opts) {
         cube = ImportCubeMap(opts.inFile, opts.importType, nullptr);
     }
 
+    Print("Converting cubemap to '{}'", LayoutNames.at(opts.exportType));
+
     ExportCubemap(opts.outFile, opts.exportType, *cube);
 }
 
@@ -192,6 +200,9 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
+
+    Print("Computing irradiance [{}px cube, {} spp, {} prefiltered IS]", opts.texSize,
+          opts.numSamples, opts.usePrefilteredIS ? "with" : "without");
 
     glUseProgram(program->id());
     glUniform1i(EnvMap, 0);
@@ -233,6 +244,10 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
+
+    Print("Computing cube convolution [{}px cube, {} levels, {} spp, {} prefiltered IS]",
+          opts.texSize, opts.mipLevels, opts.numSamples,
+          opts.usePrefilteredIS ? "with" : "without");
 
     glUseProgram(program->id());
     glUniform1i(EnvMap, 0);

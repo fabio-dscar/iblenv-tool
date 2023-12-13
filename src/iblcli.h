@@ -34,7 +34,7 @@ std::unique_ptr<Texture> SphericalProjToCubemap(const std::string& filePath, int
 
 inline void ExecuteJob(const CliOptions& opts) {
     if (opts.mode == Mode::Unknown)
-        ibl::util::ExitWithError("Unknown option.");
+        FATAL("Unknown option.");
 
     InitOpenGL();
 

@@ -20,18 +20,20 @@ bool IsSupportedFormat(const path& filePath) {
 void ValidateOptions(const CliOptions& opts) {
     const static std::vector formats{".exr", ".hdr", ".bin"};
 
-    if (!IsSupportedFormat(opts.inFile))
+    /*if (!IsSupportedFormat(opts.inFile))
         util::ExitWithError("Input file {} has unsupported format.", opts.inFile);
 
     if (!IsSupportedFormat(opts.outFile))
         util::ExitWithError("Output file {} has unsupported format.", opts.outFile);
+*/
 
-    if (!exists(opts.inFile))
+    /*if (!exists(opts.inFile))
         util::ExitWithError("Input file {} doesn't exist.", opts.inFile);
+*/
 
     if (opts.mode == Mode::Brdf) {
         if (path(opts.outFile).extension() == ".hdr")
-            util::ExitWithError("Exporting the brdf in .hdr format is not supported.");
+            FATAL("Exporting the brdf in .hdr format is not supported.");
     }
 }
 
@@ -196,6 +198,12 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     ArgumentParser irradiance("irradiance");
     irradiance.add_description("");
     irradiance.add_parents(inOut, sampled);
+
+    irradiance.add_argument("--sph")
+        .help("Spherical harmonics order number to compute irradiance with.")
+        .nargs(1)
+        .default_value(-1)
+        .scan<'i', int>();
 
     ArgumentParser convolution("convolution");
     convolution.add_description("");

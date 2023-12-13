@@ -30,7 +30,7 @@ std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
                                      const ImageFormat& fmt) {
     std::ifstream file(filePath, std::ios_base::in | std::ios_base::binary);
     if (file.fail())
-        ExitWithError("Failed to open file {}", filePath);
+        FATAL("Failed to open file {}", filePath);
 
     file.seekg(0, std::ios::end);
     auto size = file.tellg();
@@ -38,7 +38,7 @@ std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
 
     auto imgSize = ibl::ImageSize(fmt);
     if (size != static_cast<long>(imgSize))
-        ExitWithError("Wrong format specified for image {}", filePath);
+        FATAL("Wrong format specified for image {}", filePath);
 
     auto data = std::make_unique<std::byte[]>(size);
     file.read(reinterpret_cast<char*>(data.get()), size);
@@ -54,20 +54,23 @@ std::unique_ptr<Image> util::LoadImage(const std::string& filePath, ImageFormat*
         return LoadHDRImage(filePath);
     else if (ext == ".bin") {
         if (!fmt)
-            ExitWithError("ImageFormat is required for loading raw dumps.");
+            FATAL("ImageFormat is required for loading raw dumps.");
 
         return LoadImageDump(filePath, *fmt);
     }
 
-    ExitWithError("Unsupported format {}", ext);
-
-    return nullptr;
+    FATAL("Unsupported format {}", ext);
 }
 
 std::unique_ptr<Image> util::LoadHDRImage(const std::string& filePath) {
     RawImage src;
     auto* data = stbi_loadf(filePath.c_str(), &src.fmt.width, &src.fmt.height,
                             &src.fmt.numChannels, 0);
+
+    if (!data)
+        FATAL("Failed to load HDR image: {}", filePath);
+
+    Print("Loaded {}x{} image {}", src.fmt.width, src.fmt.height, filePath);
 
     src.fmt.compSize = sizeof(float);
     src.name = path(filePath).filename();
@@ -89,10 +92,10 @@ std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool half
         if (err) {
             std::string errStr = err;
             FreeEXRErrorMessage(err);
-            ExitWithError("{}", errStr);
+            FATAL("Failed to load EXR image {}: {}", filePath, errStr);
         }
     } else {
-        std::cout << std::format("Loaded! {}x{}\n", src.fmt.width, src.fmt.height);
+        Print("Loaded {}x{} image {}", src.fmt.width, src.fmt.height, filePath);
     }
 
     src.name = path(filePath).filename();
@@ -156,6 +159,8 @@ void util::SaveMipmappedImage(const path& filePath, const Image& image) {
         return filePath.filename().string();
     };
 
+    Print("Saving {} mip levels...", image.levels);
+
     for (int lvl = 0; lvl < image.levels; ++lvl)
         SaveImage(parent / NameOutput(lvl), ImageSpan{image, lvl});
 }
@@ -171,12 +176,14 @@ void util::SaveImage(const std::string& fname, const ImageSpan& image) {
     else if (ext == ".img")
         SaveImgFormatImage(fname, image);
     else
-        ExitWithError("Unsupported format {}", ext);
+        FATAL("Unsupported format {}", ext);
 }
 
 void util::SaveHDRImage(const std::string fname, const ImageSpan& image) {
     stbi_write_hdr(fname.c_str(), image.width, image.height, image.numChan,
                    reinterpret_cast<const float*>(image.data()));
+
+    Print("Saved HDR file {}", fname);
 }
 
 void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
@@ -246,10 +253,10 @@ void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
     const char* err;
     int ret = SaveEXRImageToFile(&exrImage, &header, fname.c_str(), &err);
     if (ret != TINYEXR_SUCCESS) {
-        ExitWithError("Error saving EXR image {}", err);
+        FATAL("Error saving EXR image {}", err);
     }
 
-    printf("Saved EXR file. [ %s ] \n", fname.c_str());
+    Print("Saved EXR file {}", fname);
 
     free(header.channels);
     free(header.pixel_types);
@@ -275,25 +282,8 @@ std::optional<std::string> util::ReadTextFile(const std::string& filepath,
     return contents;
 }
 
-void util::ExitWithErrorMsg(const std::string& message) {
-    std::cerr << "[ERROR] " << message << "\n";
-    std::exit(EXIT_FAILURE);
-}
-
-bool util::CheckOpenGLError() {
-    bool isError = false;
-    GLenum errCode;
-    while ((errCode = glGetError()) != GL_NO_ERROR) {
-        isError = true;
-        std::cerr << std::format("OpenGL Error: {}\n", errCode);
-    }
-    return isError;
-}
-
-void GLAPIENTRY util::OpenGLErrorCallback(GLenum source, GLenum type, GLuint id,
-                                          GLenum severity, GLsizei length,
-                                          const GLchar* message, const void* userParam) {
-    fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-            (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), type, severity,
-            message);
+void GLAPIENTRY util::OpenGLErrorCallback(GLenum, GLenum type, GLuint, GLenum severity,
+                                          GLsizei, const GLchar* message, const void*) {
+    std::cerr << std::format("[OPENGL] Type = 0x{:x}, Severity = 0x{:x}, Message = {}\n",
+                             type, severity, message);
 }
