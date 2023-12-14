@@ -47,8 +47,7 @@ const static std::map<CubeLayoutType, std::string> LayoutNames{
     {CubeLayoutType::VerticalCross, "Vertical Cross"},
     {CubeLayoutType::Custom, "Custom Format"}};
 
-void ExportCubemap(const std::string& filePath, CubeLayoutType type,
-                   const CubeImage& cube);
+void ExportCubemap(const std::string& filePath, CubeLayoutType type, CubeImage& cube);
 std::unique_ptr<CubeImage> ImportCubeMap(const std::string& filePath, CubeLayoutType type,
                                          ImageFormat* reqFmt);
 

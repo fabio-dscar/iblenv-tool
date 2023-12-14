@@ -162,17 +162,17 @@ MappingFunc getMapping<VerticalCross>() {
         return {.width = 3 * cubeSide,
                 .height = 4 * cubeSide,
                 .mapping{
-                    {0, {cubeSide, cubeSide}},
-                    {1, {cubeSide, 3 * cubeSide}},
+                    {4, {cubeSide, cubeSide}},
+                    {5, {cubeSide, 3 * cubeSide}},
                     {2, {cubeSide, 0}},
                     {3, {cubeSide, 2 * cubeSide}},
-                    {4, {0, cubeSide}},
-                    {5, {2 * cubeSide, cubeSide}},
+                    {1, {0, cubeSide}},
+                    {0, {2 * cubeSide, cubeSide}},
                 }};
     };
 }
 
-std::map<CubeLayoutType, MappingFunc> CubeMappings{
+static const std::map<CubeLayoutType, MappingFunc> CubeMappings{
     {Sequence, getMapping<Sequence>()},
     {VerticalSequence, getMapping<VerticalSequence>()},
     {HorizontalCross, getMapping<HorizontalCross>()},
@@ -259,19 +259,42 @@ void ExportCustom(const path& filePath, const CubeImage& cube) {
 }
 // clang-format on
 
+Image InvertXY(const Image& image) {
+    Image retImg{image.format()};
+
+    for (int lvl = 0; lvl < retImg.levels; ++lvl) {
+        auto dstPtr = retImg.data(lvl);
+        auto srcPtr = image.data(lvl);
+
+        auto dstW = std::max(retImg.width >> lvl, 1);
+        auto srcW = std::max(image.width >> lvl, 1);
+
+        srcPtr += image.pixelSize() * srcW * dstW;
+        for (int px = 0; px < dstW * dstW; ++px) {
+            std::memcpy(dstPtr, srcPtr, retImg.pixelSize());
+            dstPtr += retImg.pixelSize();
+            srcPtr -= image.pixelSize();
+        }
+    }
+
+    return retImg;
+}
+
 void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
-                        const CubeImage& cube) {
+                        CubeImage& cube) {
     using enum CubeLayoutType;
 
     switch (type) {
     case Separate:
         ExportSeparate(filePath, cube);
         break;
+    case VerticalCross:
+        // Invert -Z in both XY axis
+        cube.setFace(5, InvertXY(cube.face(5)));
     case Sequence:
     case VerticalSequence:
     case HorizontalCross:
     case InvHorizontalCross:
-    case VerticalCross:
         ExportCombined(filePath, CubeMappings.at(type), cube);
         break;
     case Custom:
@@ -380,6 +403,14 @@ auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc
 std::unique_ptr<CubeImage> ibl::ImportCubeMap(const std::string& filePath,
                                               CubeLayoutType type, ImageFormat* reqFmt) {
     using enum CubeLayoutType;
+
+    // Handle special case, invert -Z for vertical cross
+    if (type == VerticalCross) {
+        auto cube = ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
+        cube->setFace(5, InvertXY(cube->face(5)));
+        return cube;
+    }
+
     switch (type) {
     case Separate:
         return ImportSeparate(filePath, reqFmt);
@@ -387,7 +418,6 @@ std::unique_ptr<CubeImage> ibl::ImportCubeMap(const std::string& filePath,
     case VerticalSequence:
     case HorizontalCross:
     case InvHorizontalCross:
-    case VerticalCross:
         return ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
     default:
         return nullptr;

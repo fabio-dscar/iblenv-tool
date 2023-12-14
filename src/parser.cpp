@@ -11,7 +11,7 @@ using namespace std::filesystem;
 using namespace argparse;
 
 bool IsSupportedFormat(const path& filePath) {
-    const static std::vector formats{".exr", ".hdr", ".bin"};
+    static const std::vector formats{".exr", ".hdr", ".bin"};
     auto ext = filePath.extension();
     auto res = std::find(formats.begin(), formats.end(), ext);
     return res != formats.end() || filePath == "";

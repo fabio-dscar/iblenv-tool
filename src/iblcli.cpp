@@ -196,7 +196,7 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture irradiance{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.texSize, {}, 6};
+    Texture irradiance{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize};
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
@@ -231,8 +231,8 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
     auto program = CompileAndLinkProgram("convolution", shaders, defines);
 
     auto envMap = LoadEnvironment(opts);
-    envMap->generateMipmaps();
     envMap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    envMap->generateMipmaps();
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);

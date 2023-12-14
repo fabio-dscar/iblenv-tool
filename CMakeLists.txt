@@ -26,9 +26,7 @@ set(IBLENV_SOURCES
 
 add_executable(iblenv src/main.cpp ${IBLENV_SOURCES})
 target_compile_features(iblenv PUBLIC cxx_std_20)
-
 target_compile_definitions(iblenv PUBLIC "$<$<CONFIG:Debug>:DEBUG>")
-
 target_include_directories(iblenv PUBLIC
   src
   ext  

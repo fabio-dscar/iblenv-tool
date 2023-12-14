@@ -82,7 +82,6 @@ std::unique_ptr<Image> util::LoadHDRImage(const std::string& filePath) {
 std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool halfFloats,
                                           bool keepAlpha) {
     // TODO: Load half floats
-
     float* out = nullptr; // width * height * RGBA
     const char* err = nullptr;
 

@@ -18,11 +18,12 @@ Texture::Texture(const CubeImage& cube) {
     target = GL_TEXTURE_CUBE_MAP;
     width = fmt.width;
     height = fmt.height;
-    levels = cube.levels();
+    levels = MaxMipLevel(width);
 
     auto intFormat = DeduceIntFormat(fmt.compSize, fmt.numChannels);
-
     init(intFormat, {});
+
+    upload(cube);
 }
 
 Texture::~Texture() {
@@ -85,7 +86,7 @@ void Texture::upload(const ImageSpan& image, int face, int lvl) const {
 }
 
 void Texture::upload(const CubeImage& cubemap) const {
-    for (int lvl = 0; lvl < cubemap.levels(); ++lvl) {
+    for (int lvl = 0; lvl < 1; ++lvl) {
         for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
             auto& cubeFace = cubemap.face(faceIdx);
             glTextureSubImage3D(handle, lvl, 0, 0, faceIdx, width, height, 1,
