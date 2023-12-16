@@ -8,98 +8,121 @@
 #include <cmath>
 #include <cassert>
 #include <array>
+#include <cstdint>
+
+#include <vector>
+#include <variant>
+
+#include <half/half.hpp>
 
 namespace ibl {
 
+typedef half_float::half Half;
+
+enum class PixelFormat { U8, F16, F32 };
+
 struct ImageFormat {
-    int width = 0, height = 0, depth = 0;
-    int numChannels = 0;
-    int compSize = 0;
-    int levels = 1;
+    PixelFormat pFmt = PixelFormat::F32;
+    int width = 0, height = 0;
+    int nChannels = 0;
 };
 
-struct CopyExtents {
-    int toX, toY;
-    int fromX, fromY;
+struct Extents {
+    int toX = 0, toY = 0;
+    int fromX = 0, fromY = 0;
     int sizeX, sizeY;
 };
 
-// Pointer to image data from image loading libraries
-struct RawImage {
-    std::string name;
-    std::byte* data = nullptr;
-    ImageFormat fmt;
-};
+int ComponentSize(PixelFormat pFmt);
 
-std::size_t ImageSize(const ImageFormat& fmt);
+inline int ResizeLvl(int dim, int lvl) {
+    return std::max(dim >> lvl, 1);
+}
+
+// Total pixels across levels
+inline std::size_t TotalPixels(ImageFormat fmt, int levels = 1) {
+    std::size_t totalPx = 0;
+    for (int l = 0; l < levels; ++l)
+        totalPx += ResizeLvl(fmt.width, l) * ResizeLvl(fmt.height, l);
+    return totalPx;
+}
+
+inline std::size_t ImageSize(ImageFormat fmt, int levels = 1) {
+    return TotalPixels(fmt, levels) * ComponentSize(fmt.pFmt) * fmt.nChannels;
+}
 
 // Mipmapped image
 class Image {
 public:
+    typedef std::array<float, 4> PixelVal;
+
     Image() = default;
-    Image(const ImageFormat& format);
-    Image(const ImageFormat& format, const Image& src, CopyExtents extents, int lvl = 0);
-    Image(const ImageFormat& format, const RawImage& source);
-    Image(const ImageFormat& format, std::unique_ptr<std::byte[]> imgPtr);
+    Image(ImageFormat format, int levels);
+    Image(ImageFormat format, const std::byte* imgPtr, int levels = 1);
+    Image(ImageFormat format, const float* imgPtr, int levels = 1);
+    Image(ImageFormat format, const Image& srcImg);
 
-    void copy(const RawImage& src);
-    void copy(int dstX, int dstY, int srcX, int srcY, int lenX, int lenY, int toLvl,
-              int fromLvl, const Image& src);
-    void copy(CopyExtents extents, const Image& src, int toLvl = 0, int fromLvl = 0);
-    void copy(const Image& src, int toLvl = 0, int fromLvl = 0);
+    Image convertTo(ImageFormat newFmt, int nLvls = 1) const;
 
-    std::byte* data(int lvl = 0) const;
-    std::byte* pixel(int x, int y, int lvl = 0) const;
+    void copy(const Image& srcImg) { *this = srcImg.convertTo(fmt); }
+    void copy(const Image& srcImg, int lvl);
+    void copy(Extents ext, const Image& srcImg, int toLvl = 0, int fromLvl = 0);
 
-    template<typename T>
-    T val(int x, int y, int chan) const {
-        const T* ptr = pixel(x, y);
-        return ptr[chan];
+    PixelVal pixel(int x, int y, int lvl = 0) const;
+    void setPixel(const PixelVal& px, int x, int y, int lvl = 0);
+
+    float channel(int x, int y, int c, int lvl = 0) const;
+    void setChannel(float val, int x, int y, int c, int lvl = 0);
+
+    void flipXY();
+
+    const std::byte* data(int lvl = 0) const {
+        std::size_t prevLvlSize = ImageSize(fmt, lvl);
+        return &ptr()[prevLvlSize];
     }
 
-    std::size_t size() const;
-    std::size_t size(int lvl) const;
+    ImageFormat format(int level = 0) const {
+        auto w = ResizeLvl(fmt.width, level);
+        auto h = ResizeLvl(fmt.height, level);
+        return {fmt.pFmt, w, h, fmt.nChannels};
+    }
 
-    std::size_t pixelSize() const { return compSize * numChan; }
+    std::size_t size(int lvl) const { return ImageSize(format(lvl)); }
+    std::size_t size() const { return ImageSize(fmt, levels); }
 
-    ImageFormat format() const;
-    ImageFormat format(int level) const;
+    int numLevels() const {
+        return levels;
+    }
 
-    std::unique_ptr<std::byte[]> imgData = nullptr;
-    int width = 0, height = 0, depth = 0;
+private:
+    std::size_t pixelOffset(int x, int y, int lvl = 0) const;
+    const std::byte* ptr() const;
+
+    std::vector<std::uint8_t> p8;
+    std::vector<Half> p16;
+    std::vector<float> p32;
+
+    ImageFormat fmt;
     int levels = 1;
-    int numChan = 0;
-    int compSize = 1;
 };
 
 class CubeImage {
 public:
-    CubeImage(const ImageFormat& format) {
-        for (auto& face : faces)
-            face = Image{format};
+    CubeImage() = default;
+    CubeImage(ImageFormat fmt, int levels) : levels(levels) {
+        for (auto& img : faces)
+            img = {fmt, levels};
     }
 
-    CubeImage(ImageFormat format, int levels) {
-        format.levels = levels;
+    const Image& operator[](int idx) const { return faces[idx]; }
+    Image& operator[](int idx) { return faces[idx]; }
 
-        for (auto& face : faces)
-            face = Image{format};
-    }
+    int numLevels() const { return levels; }
+    ImageFormat imgFormat(int lvl = 0) const { return faces[0].format(lvl); }
 
-    Image& face(int face) { return faces[face]; }
-    const Image& face(int face) const { return faces[face]; }
-    void setFace(int face, Image src) { faces[face] = std::move(src); }
-
-    ImageFormat imgFormat(int level = 0) const { return faces[0].format(level); }
-    int levels() const { return faces[0].levels; }
-
+private:
     std::array<Image, 6> faces;
-};
-
-struct SpanExtents {
-    int fromX = 0, fromY = 0;
-    int sizeX = 0, sizeY = 0;
-    int lvl = 0;
+    int levels = 1;
 };
 
 // Non owning reference to an image (including all levels) or one image level
@@ -107,22 +130,22 @@ class ImageSpan {
 public:
     ImageSpan(const Image& image);
     ImageSpan(const Image& image, int lvl);
-    ImageSpan(const Image& image, SpanExtents extents);
 
     ImageFormat format() const {
-        return {width, height, depth, numChan, compSize, levels};
+        return fmt;
     }
 
     const std::byte* data() const { return start; }
     std::size_t size() const { return spanSize; }
 
+    int width() const { return fmt.width; }
+    int height() const { return fmt.height; }
+
     const std::byte* start;
     std::size_t spanSize;
 
-    int width = 0, height = 0, depth = 0;
+    ImageFormat fmt;
     int levels = 1;
-    int numChan = 0;
-    int compSize = 1;
 };
 
 } // namespace ibl

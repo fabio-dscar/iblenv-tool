@@ -3,25 +3,28 @@
 
 #include <util.h>
 
+#include <ranges>
+#include <execution>
+
 using namespace ibl;
 
 Texture::Texture(unsigned int target, unsigned int format, int width, int height,
-                 SamplerOpts sampler, int layers, int levels)
-    : width(width), height(height), levels(levels), target(target), layers(layers) {
+                 int levels)
+    : width(width), height(height), levels(levels), target(target) {
 
-    init(format, sampler);
+    init(format);
 }
 
 Texture::Texture(const CubeImage& cube) {
-    ImageFormat fmt = cube.imgFormat();
+    auto fmt = cube.imgFormat();
 
     target = GL_TEXTURE_CUBE_MAP;
     width = fmt.width;
     height = fmt.height;
     levels = MaxMipLevel(width);
 
-    auto intFormat = DeduceIntFormat(fmt.compSize, fmt.numChannels);
-    init(intFormat, {});
+    auto intFormat = DeduceIntFormat(ComponentSize(fmt.pFmt), fmt.nChannels);
+    init(intFormat);
 
     upload(cube);
 }
@@ -31,7 +34,7 @@ Texture::~Texture() {
         glDeleteTextures(1, &handle);
 }
 
-void Texture::init(unsigned int format, const SamplerOpts& sampler) {
+void Texture::init(unsigned int format) {
     auto pair = TexFormatInfo.find(format);
     if (pair == TexFormatInfo.end())
         FATAL("Unsupported internal format {}", format);
@@ -42,16 +45,14 @@ void Texture::init(unsigned int format, const SamplerOpts& sampler) {
 
     if (target == GL_TEXTURE_2D || target == GL_TEXTURE_CUBE_MAP)
         glTextureStorage2D(handle, levels, info->intFormat, width, height);
-    else if (target == GL_TEXTURE_CUBE_MAP_ARRAY)
-        glTextureStorage3D(handle, levels, info->intFormat, width, height, layers);
 
-    glTextureParameteri(handle, GL_TEXTURE_WRAP_S, sampler.wrapS);
-    glTextureParameteri(handle, GL_TEXTURE_WRAP_T, sampler.wrapT);
-    if (target == GL_TEXTURE_CUBE_MAP_ARRAY)
-        glTextureParameteri(handle, GL_TEXTURE_WRAP_R, sampler.wrapR);
+    glTextureParameteri(handle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(handle, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if (target == GL_TEXTURE_CUBE_MAP)
+        glTextureParameteri(handle, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-    glTextureParameteri(handle, GL_TEXTURE_MIN_FILTER, sampler.minFilter);
-    glTextureParameteri(handle, GL_TEXTURE_MAG_FILTER, sampler.magFilter);
+    glTextureParameteri(handle, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(handle, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 void Texture::bind() const {
@@ -68,71 +69,69 @@ std::unique_ptr<std::byte[]> Texture::data(int level) const {
 std::unique_ptr<std::byte[]> Texture::data(int face, int level) const {
     auto size = sizeBytesFace(level);
     auto dataPtr = std::make_unique<std::byte[]>(size);
-    bind();
+
+    glBindTexture(target, handle);
     glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level, info->format, info->type,
                   dataPtr.get());
     glBindTexture(target, 0);
+
     return dataPtr;
 }
 
 void Texture::upload(const ImageSpan& image, int lvl) const {
-    glTextureSubImage2D(handle, lvl, 0, 0, image.width, image.height, info->format,
-                        info->type, image.data());
-}
-
-void Texture::upload(const ImageSpan& image, int face, int lvl) const {
-    glTextureSubImage3D(handle, lvl, 0, 0, face, width, height, 1, info->format,
+    glTextureSubImage2D(handle, lvl, 0, 0, image.width(), image.height(), info->format,
                         info->type, image.data());
 }
 
 void Texture::upload(const CubeImage& cubemap) const {
-    for (int lvl = 0; lvl < 1; ++lvl) {
-        for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
-            auto& cubeFace = cubemap.face(faceIdx);
-            glTextureSubImage3D(handle, lvl, 0, 0, faceIdx, width, height, 1,
-                                info->format, info->type, cubeFace.data(lvl));
+    for (int lvl = 0; lvl < cubemap.numLevels(); ++lvl) {
+        for (int face = 0; face < 6; ++face) {
+            glTextureSubImage3D(handle, lvl, 0, 0, face, width, height, 1, info->format,
+                                info->type, cubemap[face].data(lvl));
         }
     }
 }
 
-std::unique_ptr<CubeImage> Texture::cubemap() const {
-    auto imgFmt = imgFormat();
-    imgFmt.levels = levels;
-
-    auto cube = std::make_unique<CubeImage>(imgFmt);
-    for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
-        Image faceImg{imgFmt};
-        for (int lvl = 0; lvl < levels; ++lvl)
-            faceImg.copy(face(faceIdx, lvl), lvl);
-        cube->setFace(faceIdx, std::move(faceImg));
-    }
-    return cube;
+std::unique_ptr<Image> Texture::image(int level) const {
+    return std::make_unique<Image>(imgFormat(level), data(level).get(), 1);
 }
 
-CubeImage Texture::cubemap(int level) const {
-    CubeImage cube{imgFormat(level)};
-    for (int faceIdx = 0; faceIdx < 6; ++faceIdx)
-        cube.setFace(faceIdx, face(faceIdx, level));
+void ParallelForN(int n, auto&& func) {
+    auto indices = std::views::iota(0, n);
+    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(), func);
+}
+
+std::unique_ptr<CubeImage> Texture::cubemap() const {
+    const auto fmt = imgFormat();
+
+    auto cube = std::make_unique<CubeImage>(fmt, levels);
+
+    //for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
+    ParallelForN(6, [&](int faceIdx) {
+        Image faceImg{fmt, levels};
+        for (int lvl = 0; lvl < levels; ++lvl)
+            faceImg.copy(face(faceIdx, lvl), lvl);
+
+        (*cube)[faceIdx] = std::move(faceImg);
+    });
+
     return cube;
 }
 
 std::size_t Texture::sizeBytes(unsigned int level) const {
     int faces = target == GL_TEXTURE_CUBE_MAP ? 6 : 1;
-    int w = std::max(width >> level, 1);
-    int h = std::max(height >> level, 1);
-    return info->compSize * info->numChannels * w * h * std::max(1, layers) * faces;
+    return sizeBytesFace(level) * faces;
 }
 
 std::size_t Texture::sizeBytesFace(unsigned int level) const {
-    int w = std::max(width >> level, 1);
-    int h = std::max(height >> level, 1);
-    return info->compSize * info->numChannels * w * h;
+    int w = ResizeLvl(width, level);
+    int h = ResizeLvl(height, level);
+    return ComponentSize(info->pxFmt) * info->numChannels * w * h;
 }
 
-ImageFormat Texture::imgFormat(int level) const {
-    int w = width * std::pow(0.5, level);
-    int h = height * std::pow(0.5, level);
-    return {w, h, 0, info->numChannels, info->compSize};
+ImageFormat Texture::imgFormat(int lvl) const {
+    return {info->pxFmt, ResizeLvl(width, lvl), ResizeLvl(height, lvl),
+            info->numChannels};
 }
 
 void Texture::setParam(GLenum param, GLint val) const {
