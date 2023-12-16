@@ -15,8 +15,14 @@ using namespace ibl;
 using namespace ibl::util;
 using namespace std::filesystem;
 
-static const std::map<int, std::string> FaceNames{{0, "+X"}, {1, "-X"}, {2, "+Y"},
-                                                  {3, "-Y"}, {4, "+Z"}, {5, "-Z"}};
+static const std::map<int, std::string> FaceNames{
+    {0, "+X"},
+    {1, "-X"},
+    {2, "+Y"},
+    {3, "-Y"},
+    {4, "+Z"},
+    {5, "-Z"}
+};
 
 int GetFaceSide(CubeLayoutType type, int width, int height) {
     using enum CubeLayoutType;
@@ -53,34 +59,6 @@ bool ValidateMapping(CubeLayoutType type, int width, int height) {
     }
 }
 
-using MipmapFileList = std::vector<std::pair<int, std::string>>;
-
-std::optional<MipmapFileList> SearchDirForLevels(const path& filePath) {
-    const auto& [parent, fileName, ext] = SplitFilePath(filePath);
-
-    std::regex regex(std::format("{}_(\\d+){}", fileName, ext));
-    std::smatch match;
-
-    MipmapFileList fileList;
-    for (auto& dirEntry : directory_iterator(parent)) {
-        if (!dirEntry.is_regular_file())
-            continue;
-
-        std::string file = dirEntry.path().filename();
-        if (std::regex_match(file, match, regex)) {
-            auto numLvl = std::stoi(match[1].str());
-            fileList.emplace_back(numLvl, file);
-        }
-    }
-
-    if (fileList.size() > 0) {
-        std::sort(fileList.begin(), fileList.end());
-        return fileList;
-    } else {
-        return {};
-    }
-}
-
 struct FaceMapping {
     int width = 0, height = 0;
     std::map<int, std::pair<int, int>> mapping;
@@ -95,89 +73,100 @@ MappingFunc getMapping();
 template<>
 MappingFunc getMapping<Sequence>() {
     return [](int cubeSide) -> FaceMapping {
-        return {.width = 6 * cubeSide,
-                .height = cubeSide,
-                .mapping{
-                    {0, {0, 0}},
-                    {1, {cubeSide, 0}},
-                    {2, {2 * cubeSide, 0}},
-                    {3, {3 * cubeSide, 0}},
-                    {4, {4 * cubeSide, 0}},
-                    {5, {5 * cubeSide, 0}},
-                }};
+        return {
+            .width = 6 * cubeSide,
+            .height = cubeSide,
+            .mapping{
+                     {0, {0, 0}},
+                     {1, {cubeSide, 0}},
+                     {2, {2 * cubeSide, 0}},
+                     {3, {3 * cubeSide, 0}},
+                     {4, {4 * cubeSide, 0}},
+                     {5, {5 * cubeSide, 0}},
+                     }
+        };
     };
 }
 
 template<>
 MappingFunc getMapping<VerticalSequence>() {
     return [](int cubeSide) -> FaceMapping {
-        return {.width = cubeSide,
-                .height = 6 * cubeSide,
-                .mapping{
-                    {0, {0, 0}},
-                    {1, {0, cubeSide}},
-                    {2, {0, 2 * cubeSide}},
-                    {3, {0, 3 * cubeSide}},
-                    {4, {0, 4 * cubeSide}},
-                    {5, {0, 5 * cubeSide}},
-                }};
+        return {
+            .width = cubeSide,
+            .height = 6 * cubeSide,
+            .mapping{
+                     {0, {0, 0}},
+                     {1, {0, cubeSide}},
+                     {2, {0, 2 * cubeSide}},
+                     {3, {0, 3 * cubeSide}},
+                     {4, {0, 4 * cubeSide}},
+                     {5, {0, 5 * cubeSide}},
+                     }
+        };
     };
 }
 
 template<>
 MappingFunc getMapping<HorizontalCross>() {
     return [](int cubeSide) -> FaceMapping {
-        return {.width = 4 * cubeSide,
-                .height = 3 * cubeSide,
-                .mapping{
-                    {0, {2 * cubeSide, cubeSide}},
-                    {1, {0, cubeSide}},
-                    {2, {cubeSide, 0}},
-                    {3, {cubeSide, 2 * cubeSide}},
-                    {4, {cubeSide, cubeSide}},
-                    {5, {3 * cubeSide, cubeSide}},
-                }};
+        return {
+            .width = 4 * cubeSide,
+            .height = 3 * cubeSide,
+            .mapping{
+                     {0, {2 * cubeSide, cubeSide}},
+                     {1, {0, cubeSide}},
+                     {2, {cubeSide, 0}},
+                     {3, {cubeSide, 2 * cubeSide}},
+                     {4, {cubeSide, cubeSide}},
+                     {5, {3 * cubeSide, cubeSide}},
+                     }
+        };
     };
 }
 
 template<>
 MappingFunc getMapping<InvHorizontalCross>() {
     return [](int cubeSide) -> FaceMapping {
-        return {.width = 4 * cubeSide,
-                .height = 3 * cubeSide,
-                .mapping{
-                    {0, {3 * cubeSide, cubeSide}},
-                    {1, {cubeSide, cubeSide}},
-                    {2, {2 * cubeSide, 0}},
-                    {3, {2 * cubeSide, 2 * cubeSide}},
-                    {4, {2 * cubeSide, cubeSide}},
-                    {5, {0, cubeSide}},
-                }};
+        return {
+            .width = 4 * cubeSide,
+            .height = 3 * cubeSide,
+            .mapping{
+                     {0, {3 * cubeSide, cubeSide}},
+                     {1, {cubeSide, cubeSide}},
+                     {2, {2 * cubeSide, 0}},
+                     {3, {2 * cubeSide, 2 * cubeSide}},
+                     {4, {2 * cubeSide, cubeSide}},
+                     {5, {0, cubeSide}},
+                     }
+        };
     };
 }
 
 template<>
 MappingFunc getMapping<VerticalCross>() {
     return [](int cubeSide) -> FaceMapping {
-        return {.width = 3 * cubeSide,
-                .height = 4 * cubeSide,
-                .mapping{
-                    {4, {cubeSide, cubeSide}},
-                    {5, {cubeSide, 3 * cubeSide}},
-                    {2, {cubeSide, 0}},
-                    {3, {cubeSide, 2 * cubeSide}},
-                    {1, {0, cubeSide}},
-                    {0, {2 * cubeSide, cubeSide}},
-                }};
+        return {
+            .width = 3 * cubeSide,
+            .height = 4 * cubeSide,
+            .mapping{
+                     {4, {cubeSide, cubeSide}},
+                     {5, {cubeSide, 3 * cubeSide}},
+                     {2, {cubeSide, 0}},
+                     {3, {cubeSide, 2 * cubeSide}},
+                     {1, {0, cubeSide}},
+                     {0, {2 * cubeSide, cubeSide}},
+                     }
+        };
     };
 }
 
 static const std::map<CubeLayoutType, MappingFunc> CubeMappings{
-    {Sequence, getMapping<Sequence>()},
-    {VerticalSequence, getMapping<VerticalSequence>()},
-    {HorizontalCross, getMapping<HorizontalCross>()},
+    {Sequence,           getMapping<Sequence>()          },
+    {VerticalSequence,   getMapping<VerticalSequence>()  },
+    {HorizontalCross,    getMapping<HorizontalCross>()   },
     {InvHorizontalCross, getMapping<InvHorizontalCross>()},
-    {VerticalCross, getMapping<VerticalCross>()}};
+    {VerticalCross,      getMapping<VerticalCross>()     }
+};
 
 void ExportSeparate(const path& filePath, const CubeImage& cube) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
@@ -187,21 +176,21 @@ void ExportSeparate(const path& filePath, const CubeImage& cube) {
     };
 
     for (const auto& [face, name] : FaceNames) {
-        SaveMipmappedImage(parent / NameOutput(face), cube.face(face));
+        SaveMipmappedImage(parent / NameOutput(face), cube[face]);
     }
 }
 
 // clang-format off
 void ExportCombined(const path& filePath, MappingFunc mapFunc, const CubeImage& cube) {
-    ImageFormat cubeFmt = cube.imgFormat();
-    FaceMapping map = mapFunc(cubeFmt.width);
-    Image crossImg{{.width = map.width,
-                    .height = map.height,
-                    .numChannels = cubeFmt.numChannels,
-                    .compSize = cubeFmt.compSize,
-                    .levels = cube.levels()}};
+    auto cubeFmt = cube.imgFormat();
+    auto map = mapFunc(cubeFmt.width);
+    Image crossImg{{.pFmt      = cubeFmt.pFmt,
+                    .width     = map.width,
+                    .height    = map.height,
+                    .nChannels = cubeFmt.nChannels}, 
+                   cube.numLevels()};
 
-    for (int lvl = 0; lvl < cube.levels(); ++lvl) {
+    for (int lvl = 0; lvl < cube.numLevels(); ++lvl) {
         cubeFmt = cube.imgFormat(lvl);
         map = mapFunc(cubeFmt.width);
 
@@ -209,17 +198,17 @@ void ExportCombined(const path& filePath, MappingFunc mapFunc, const CubeImage& 
             auto& [x, y] = coords;
 
             // Copy face image into portion of the cross/layout chosen
-            auto& faceImg = cube.face(face);
-            crossImg.copy({.toX = x, .toY = y,
+            crossImg.copy({.toX   = x, .toY   = y,
                            .fromX = 0, .fromY = 0,
                            .sizeX = cubeFmt.width,
                            .sizeY = cubeFmt.height},
-                          faceImg, lvl, lvl);
+                          cube[face], lvl, lvl);
         }
     }
 
     SaveMipmappedImage(filePath, crossImg);
 }
+// clang-format on
 
 struct CubeHeader {
     char id[4] = {'C', 'U', 'B', 'E'};
@@ -236,73 +225,43 @@ void ExportCustom(const path& filePath, const CubeImage& cube) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
     auto imgFmt = cube.imgFormat();
+    auto faceSize = cube[0].size();
 
     CubeHeader header;
     header.fmt = 0;
     header.width = imgFmt.width;
     header.height = imgFmt.height;
-    header.compSize = imgFmt.compSize;
-    header.numChannels = imgFmt.numChannels;
-    header.totalSize = cube.face(0).size() * 6;
-    header.levels = cube.levels();
+    header.compSize = ComponentSize(imgFmt.pFmt);
+    header.numChannels = imgFmt.nChannels;
+    header.totalSize = faceSize * 6;
+    header.levels = cube.numLevels();
 
     auto outName = std::format("{}{}", fname, ".cube");
     std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
     file.write((const char*)&header, sizeof(CubeHeader));
 
-    for (int face = 0; face < 6; ++face) {
-        auto& faceImg =  cube.face(face);
-        file.write(reinterpret_cast<const char*>(faceImg.data()), faceImg.size());
-    }
+    for (int face = 0; face < 6; ++face)
+        file.write(reinterpret_cast<const char*>(cube[face].data()), faceSize);
 
     file.close();
 }
-// clang-format on
 
-Image InvertXY(const Image& image) {
-    Image retImg{image.format()};
-
-    for (int lvl = 0; lvl < retImg.levels; ++lvl) {
-        auto dstPtr = retImg.data(lvl);
-        auto srcPtr = image.data(lvl);
-
-        auto dstW = std::max(retImg.width >> lvl, 1);
-        auto srcW = std::max(image.width >> lvl, 1);
-
-        srcPtr += image.pixelSize() * srcW * dstW;
-        for (int px = 0; px < dstW * dstW; ++px) {
-            std::memcpy(dstPtr, srcPtr, retImg.pixelSize());
-            dstPtr += retImg.pixelSize();
-            srcPtr -= image.pixelSize();
-        }
-    }
-
-    return retImg;
-}
+typedef std::chrono::high_resolution_clock Clock;
 
 void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
                         CubeImage& cube) {
-    using enum CubeLayoutType;
 
-    switch (type) {
-    case Separate:
+    if (type == CubeLayoutType::Separate)
         ExportSeparate(filePath, cube);
-        break;
-    case VerticalCross:
-        // Invert -Z in both XY axis
-        cube.setFace(5, InvertXY(cube.face(5)));
-    case Sequence:
-    case VerticalSequence:
-    case HorizontalCross:
-    case InvHorizontalCross:
-        ExportCombined(filePath, CubeMappings.at(type), cube);
-        break;
-    case Custom:
+    else if (type == CubeLayoutType::Custom)
         ExportCustom(filePath, cube);
-        break;
-    default:
-        break;
-    };
+    else {
+        // Special case: invert -Z in both axis
+        if (type == CubeLayoutType::VerticalCross)
+            cube[5].flipXY();
+
+        ExportCombined(filePath, CubeMappings.at(type), cube);
+    }
 }
 
 auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
@@ -319,9 +278,9 @@ auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
         auto imgFace = LoadImage(filePath, fmt);
 
         if (!cube)
-            cube = std::make_unique<CubeImage>(imgFace->format());
+            cube = std::make_unique<CubeImage>(imgFace->format(), 1);
 
-        cube->setFace(face, std::move(*imgFace));
+        (*cube)[face] = std::move(*imgFace);
     }
 
     return cube;
@@ -330,24 +289,26 @@ auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
 // clang-format off
 auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFunc,
                     ImageFormat* fmt) {
+                        
     auto srcImg = LoadImage(filePath, fmt);
+    auto srcFmt = srcImg->format();
 
-    if (!ValidateMapping(type, srcImg->width, srcImg->height))
+    if (!ValidateMapping(type, srcFmt.width, srcFmt.height))
         FATAL("Provided cubemap layout type does not match input file.");
 
-    auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
-    ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};
+    auto cubeSide = GetFaceSide(type, srcFmt.width, srcFmt.height);
+    ImageFormat faceFmt{srcFmt.pFmt, cubeSide, cubeSide, srcFmt.nChannels};
 
-    auto cube = std::make_unique<CubeImage>(faceFmt);
+    auto cube = std::make_unique<CubeImage>(faceFmt, 1);
 
     FaceMapping map = mapFunc(cubeSide);
     for (const auto& [face, coords] : map.mapping) {
         auto& [x, y] = coords;
 
-        auto& cubeFace = cube->face(face);
+        auto& cubeFace = (*cube)[face];
 
         // Copy a portion from a cross/cube layout into new single face image
-        cubeFace.copy({.toX = 0, .toY = 0,
+        cubeFace.copy({.toX   = 0, .toY   = 0,
                        .fromX = x, .fromY = y,
                        .sizeX = faceFmt.width,
                        .sizeY = faceFmt.height}, 
@@ -356,70 +317,19 @@ auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFu
 
     return cube;
 }
-
-auto ImportCombinedLevels(const path& filePath, CubeLayoutType type, MappingFunc mapFunc,
-                          ImageFormat* fmt) {
-
-    auto results = SearchDirForLevels(filePath);
-    if (!results)
-        return std::unique_ptr<CubeImage>(nullptr);
-
-    auto fileList = results.value();
-    int numLevels = fileList.size();
-
-    std::unique_ptr<CubeImage> cube = nullptr;
-
-    for (const auto& [lvl, name] : fileList) {
-        auto srcImg = LoadImage(name, fmt);
-
-        if (!ValidateMapping(type, srcImg->width, srcImg->height))
-            FATAL("Provided cubemap layout type does not match input file.");
-
-        auto cubeSide = GetFaceSide(type, srcImg->width, srcImg->height);
-        ImageFormat faceFmt{cubeSide, cubeSide, 0, srcImg->numChan, srcImg->compSize};
-
-        if (!cube) {
-            cube = std::make_unique<CubeImage>(faceFmt, numLevels);
-        }
-
-        FaceMapping map = mapFunc(cubeSide);
-        for (const auto& [face, coords] : map.mapping) {
-            auto& [x, y] = coords;
-
-            // Copy a portion from a cross/cube layout into a single face image
-            auto& cubeFace = cube->face(face);
-            cubeFace.copy({.toX = 0, .toY = 0,
-                           .fromX = x, .fromY = y,
-                           .sizeX = faceFmt.width,
-                           .sizeY = faceFmt.height}, 
-                          *srcImg, lvl);
-        }
-    }
-
-    return cube;
-}
 // clang-format on
 
 std::unique_ptr<CubeImage> ibl::ImportCubeMap(const std::string& filePath,
                                               CubeLayoutType type, ImageFormat* reqFmt) {
-    using enum CubeLayoutType;
 
-    // Handle special case, invert -Z for vertical cross
-    if (type == VerticalCross) {
-        auto cube = ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
-        cube->setFace(5, InvertXY(cube->face(5)));
-        return cube;
-    }
-
-    switch (type) {
-    case Separate:
+    if (type == CubeLayoutType::Separate)
         return ImportSeparate(filePath, reqFmt);
-    case Sequence:
-    case VerticalSequence:
-    case HorizontalCross:
-    case InvHorizontalCross:
-        return ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
-    default:
-        return nullptr;
-    };
+
+    auto cube = ImportCombined(filePath, type, CubeMappings.at(type), reqFmt);
+
+    // Handle special case, invert -Z face for vertical cross
+    if (type == CubeLayoutType::VerticalCross)
+        (*cube)[5].flipXY();
+
+    return cube;
 }

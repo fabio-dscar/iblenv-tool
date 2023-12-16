@@ -25,6 +25,7 @@
 using namespace ibl;
 using namespace ibl::util;
 using namespace std::filesystem;
+using namespace std::literals;
 
 std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
                                      const ImageFormat& fmt) {
@@ -38,12 +39,12 @@ std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
 
     auto imgSize = ibl::ImageSize(fmt);
     if (size != static_cast<long>(imgSize))
-        FATAL("Wrong format specified for image {}", filePath);
+        FATAL("Incompatible format specified for image {}", filePath);
 
     auto data = std::make_unique<std::byte[]>(size);
     file.read(reinterpret_cast<char*>(data.get()), size);
 
-    return std::make_unique<Image>(fmt, std::move(data));
+    return std::make_unique<Image>(fmt, data.get(), 1);
 }
 
 std::unique_ptr<Image> util::LoadImage(const std::string& filePath, ImageFormat* fmt) {
@@ -63,56 +64,74 @@ std::unique_ptr<Image> util::LoadImage(const std::string& filePath, ImageFormat*
 }
 
 std::unique_ptr<Image> util::LoadHDRImage(const std::string& filePath) {
-    RawImage src;
-    auto* data = stbi_loadf(filePath.c_str(), &src.fmt.width, &src.fmt.height,
-                            &src.fmt.numChannels, 0);
+    ImageFormat srcFmt{.pFmt = PixelFormat::F32};
+    auto* data =
+        stbi_loadf(filePath.c_str(), &srcFmt.width, &srcFmt.height, &srcFmt.nChannels, 0);
 
     if (!data)
         FATAL("Failed to load HDR image: {}", filePath);
 
-    Print("Loaded {}x{} image {}", src.fmt.width, src.fmt.height, filePath);
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
 
-    src.fmt.compSize = sizeof(float);
-    src.name = path(filePath).filename();
-    src.data = reinterpret_cast<std::byte*>(data);
+    ImageFormat dstFmt = srcFmt;
+    dstFmt.nChannels = 3; // Get rid of alpha if available on source image
 
-    return std::make_unique<Image>(src.fmt, src);
+    Image rawImg{srcFmt, data};
+    free(data);
+
+    return std::make_unique<Image>(dstFmt, rawImg);
 }
 
-std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool halfFloats,
-                                          bool keepAlpha) {
-    // TODO: Load half floats
+std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool keepAlpha) {
     float* out = nullptr; // width * height * RGBA
     const char* err = nullptr;
 
-    RawImage src;
-    int ret = LoadEXR(&out, &src.fmt.width, &src.fmt.height, filePath.c_str(), &err);
+    ImageFormat srcFmt = {.pFmt = PixelFormat::F32, .nChannels = 4};
+
+    int ret = LoadEXRWithLayer(&out, &srcFmt.width, &srcFmt.height, filePath.c_str(),
+                               NULL, &err);
+
     if (ret != TINYEXR_SUCCESS) {
+        std::string errStr = "";
         if (err) {
-            std::string errStr = err;
+            errStr = err;
             FreeEXRErrorMessage(err);
-            FATAL("Failed to load EXR image {}: {}", filePath, errStr);
         }
-    } else {
-        Print("Loaded {}x{} image {}", src.fmt.width, src.fmt.height, filePath);
+        FATAL("Failed to load EXR image {}: {}", filePath, errStr);
     }
 
-    src.name = path(filePath).filename();
-    src.fmt.compSize = sizeof(float);
-    src.fmt.numChannels = 4;
-    src.data = reinterpret_cast<std::byte*>(out);
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
 
-    ImageFormat dstFmt = src.fmt;
+    ImageFormat dstFmt = srcFmt;
     if (!keepAlpha) // Throw away the alpha on copy
-        dstFmt.numChannels = 3;
+        dstFmt.nChannels = 3;
 
-    return std::make_unique<Image>(dstFmt, src);
+    Image rawImg{srcFmt, out};
+    free(out);
+
+    return std::make_unique<Image>(dstFmt, rawImg);
 }
 
-void SaveRawImage(const std::string& fname, std::size_t size, const void* data) {
+std::string GetPixelFormat(const ImageFormat& fmt) {
+    static const std::array NumChannels{"R"s, "RG"s, "RGB"s};
+    static const std::map<PixelFormat, std::string> PixelFormat{
+        {PixelFormat::U8,  "8"  },
+        {PixelFormat::F16, "16F"},
+        {PixelFormat::F32, "32F"}
+    };
+
+    return std::format("{}{}", NumChannels[fmt.nChannels - 1], PixelFormat.at(fmt.pFmt));
+}
+
+void SaveRawImage(const std::string& fname, const ImageSpan& image) {
     std::ofstream file(fname, std::ios_base::out | std::ios_base::binary);
-    file.write(reinterpret_cast<const char*>(data), size);
-    file.close();
+    file.write(reinterpret_cast<const char*>(image.data()), image.size());
+
+    auto imgFmt = image.format();
+    Print("Saved raw image data successfully:\n\n{}\nDimensions: {}x{}\nPixel Format: "
+          "{}\nSize: {} bytes\n",
+          path(fname).filename().string(), imgFmt.width, imgFmt.height,
+          GetPixelFormat(imgFmt), image.size());
 }
 
 struct ImgHeader {
@@ -136,11 +155,11 @@ void SaveImgFormatImage(const path& filePath, const ImageSpan& img) {
     header.fmt = 0;
     header.width = imgFmt.width;
     header.height = imgFmt.height;
-    header.depth = imgFmt.depth;
-    header.compSize = imgFmt.compSize;
-    header.numChannels = imgFmt.numChannels;
+    header.depth = 0;
+    header.compSize = ComponentSize(imgFmt.pFmt);
+    header.numChannels = imgFmt.nChannels;
     header.totalSize = img.size();
-    header.levels = imgFmt.levels;
+    header.levels = img.levels;
 
     auto outName = std::format("{}{}", fname, ".img");
     std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
@@ -153,14 +172,14 @@ void util::SaveMipmappedImage(const path& filePath, const Image& image) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
     auto NameOutput = [&](int lvl) -> auto {
-        if (image.levels > 1)
+        if (image.numLevels() > 1)
             return std::format("{}_{}{}", fname, lvl, ext);
         return filePath.filename().string();
     };
 
-    Print("Saving {} mip levels...", image.levels);
+    Print("Saving {} mip levels...", image.numLevels());
 
-    for (int lvl = 0; lvl < image.levels; ++lvl)
+    for (int lvl = 0; lvl < image.numLevels(); ++lvl)
         SaveImage(parent / NameOutput(lvl), ImageSpan{image, lvl});
 }
 
@@ -171,24 +190,25 @@ void util::SaveImage(const std::string& fname, const ImageSpan& image) {
     else if (ext == ".hdr")
         SaveHDRImage(fname, image);
     else if (ext == ".bin")
-        SaveRawImage(fname, image.size(), image.data());
+        SaveRawImage(fname, image);
     else if (ext == ".img")
         SaveImgFormatImage(fname, image);
     else
         FATAL("Unsupported format {}", ext);
 }
 
-void util::SaveHDRImage(const std::string fname, const ImageSpan& image) {
-    stbi_write_hdr(fname.c_str(), image.width, image.height, image.numChan,
+void util::SaveHDRImage(const std::string& fname, const ImageSpan& image) {
+    stbi_write_hdr(fname.c_str(), image.width(), image.height(), image.format().nChannels,
                    reinterpret_cast<const float*>(image.data()));
 
     Print("Saved HDR file {}", fname);
 }
 
 void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
-    int width = image.width;
-    int height = image.height;
+    int width = image.width();
+    int height = image.height();
     int numChannels = 3;
+    int compSize = ComponentSize(image.format().pFmt);
     const char* data = reinterpret_cast<const char*>(image.data());
 
     EXRHeader header;
@@ -200,20 +220,19 @@ void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
     exrImage.num_channels = numChannels;
 
     std::vector<char> images[3];
-    images[0].resize(width * height * image.compSize);
-    images[1].resize(width * height * image.compSize);
-    images[2].resize(width * height * image.compSize);
+    images[0].resize(width * height * compSize);
+    images[1].resize(width * height * compSize);
+    images[2].resize(width * height * compSize);
 
     for (int i = 0; i < width * height; i++) {
         for (int c = 0; c < numChannels; c++) {
-            if (c < image.numChan)
-                std::memcpy(
-                    &images[c][i * image.compSize],
-                    &data[image.compSize * image.numChan * i + c * image.compSize],
-                    image.compSize);
+            if (c < image.format().nChannels)
+                std::memcpy(&images[c][i * compSize],
+                            &data[compSize * image.format().nChannels * i + c * compSize],
+                            compSize);
             // images[c][i] = data[image.numChannels * i + c];
             else
-                images[c][i * image.compSize] = 0;
+                images[c][i * compSize] = 0;
         }
     }
 
@@ -241,18 +260,20 @@ void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
     header.requested_pixel_types = (int*)malloc(sizeof(int) * header.num_channels);
     for (int i = 0; i < header.num_channels; i++) {
         header.pixel_types[i] =
-            image.compSize == 2 ? TINYEXR_PIXELTYPE_HALF
-                                : TINYEXR_PIXELTYPE_FLOAT; // pixel type of input image
+            compSize == 2 ? TINYEXR_PIXELTYPE_HALF
+                          : TINYEXR_PIXELTYPE_FLOAT; // pixel type of input image
         header.requested_pixel_types[i] =
-            image.compSize == 2 ? TINYEXR_PIXELTYPE_HALF
-                                : TINYEXR_PIXELTYPE_FLOAT; // pixel type of output image
+            compSize == 2 ? TINYEXR_PIXELTYPE_HALF
+                          : TINYEXR_PIXELTYPE_FLOAT; // pixel type of output image
         //  to be stored in .EXR
     }
 
     const char* err;
     int ret = SaveEXRImageToFile(&exrImage, &header, fname.c_str(), &err);
     if (ret != TINYEXR_SUCCESS) {
-        FATAL("Error saving EXR image {}", err);
+        std::string errMsg = err;
+        FreeEXRErrorMessage(err);
+        FATAL("Error saving EXR image {}", errMsg);
     }
 
     Print("Saved EXR file {}", fname);

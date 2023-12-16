@@ -32,14 +32,13 @@ namespace util {
 //
 std::unique_ptr<Image> LoadImage(const std::string& filePath, ImageFormat* fmt = nullptr);
 std::unique_ptr<Image> LoadHDRImage(const std::string& filePath);
-std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool halfFloat = false,
-                                    bool keepAlpha = false);
+std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool keepAlpha = false);
 
 void SaveImage(const std::string& fname, const ImageSpan& image);
 void SaveMipmappedImage(const std::filesystem::path& filePath, const Image& image);
 
 void SaveEXRImage(const std::string& fname, const ImageSpan& image);
-void SaveHDRImage(const std::string fname, const ImageSpan& image);
+void SaveHDRImage(const std::string& fname, const ImageSpan& image);
 
 // --------------------------------------------
 //    General IO

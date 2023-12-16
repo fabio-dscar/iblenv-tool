@@ -17,7 +17,6 @@
 
 namespace ibl {
 
-struct ImageFormat;
 class Texture;
 
 static const std::vector CubeMapViews{
@@ -38,14 +37,15 @@ enum class CubeLayoutType {
     Custom = 6
 };
 
-const static std::map<CubeLayoutType, std::string> LayoutNames{
-    {CubeLayoutType::HorizontalCross, "Horizontal Cross"},
+static const std::map<CubeLayoutType, std::string> LayoutNames{
+    {CubeLayoutType::HorizontalCross,    "Horizontal Cross"         },
     {CubeLayoutType::InvHorizontalCross, "Inverted Horizontal Cross"},
-    {CubeLayoutType::Sequence, "Sequence"},
-    {CubeLayoutType::Separate, "Separate Faces"},
-    {CubeLayoutType::VerticalSequence, "Vertical Sequence"},
-    {CubeLayoutType::VerticalCross, "Vertical Cross"},
-    {CubeLayoutType::Custom, "Custom Format"}};
+    {CubeLayoutType::Sequence,           "Sequence"                 },
+    {CubeLayoutType::Separate,           "Separate Faces"           },
+    {CubeLayoutType::VerticalSequence,   "Vertical Sequence"        },
+    {CubeLayoutType::VerticalCross,      "Vertical Cross"           },
+    {CubeLayoutType::Custom,             "Custom Format"            }
+};
 
 void ExportCubemap(const std::string& filePath, CubeLayoutType type, CubeImage& cube);
 std::unique_ptr<CubeImage> ImportCubeMap(const std::string& filePath, CubeLayoutType type,
