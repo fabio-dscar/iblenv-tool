@@ -13,9 +13,9 @@ vec3 EnvironmentIrradiance(vec3 N) {
 
 #ifdef PREFILTERED_IS
     // Pre-filtered importance sampling constants
-    ivec2 cubeSize = textureSize(EnvMap, 0);
-    float cubeSize2 = cubeSize.x * cubeSize.x;
-    float Omega_p = 4.0 * PI / (6.0 * cubeSize2);
+    ivec2 CubeSize = textureSize(EnvMap, 0);
+    float CubeSize2 = CubeSize.x * CubeSize.x;
+    float Omega_p = 4.0 * PI / (6.0 * CubeSize2);
     float K = 4.0;
 #endif
 
@@ -34,14 +34,14 @@ vec3 EnvironmentIrradiance(vec3 N) {
             float MipLevel = 0;
 #endif
             vec3 Lenv = textureLod(EnvMap, Wi, MipLevel).rgb;
-            E_d += Lenv / CosHemisPdf;
+            E_d += Lenv;
         }
     }
 
 #ifdef DIVIDED_PI
-    return E_d / (PI * NumSamples);
+    return E_d / (PI * CosHemisPdf * NumSamples);
 #else
-    return E_d / NumSamples;
+    return E_d / (CosHemisPdf * NumSamples);
 #endif
 }
 

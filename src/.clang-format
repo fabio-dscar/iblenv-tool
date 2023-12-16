@@ -11,3 +11,4 @@ ColumnLimit: 90
 AllowShortFunctionsOnASingleLine: Inline
 IncludeBlocks: Preserve
 SortIncludes: Never
+AlignArrayOfStructures: Left

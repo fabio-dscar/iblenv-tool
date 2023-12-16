@@ -26,7 +26,7 @@ using namespace ibl;
 using namespace ibl::util;
 using namespace std::literals;
 
-GLFWwindow* window;
+static GLFWwindow* window;
 
 void ibl::InitOpenGL() {
     if (!glfwInit())
@@ -82,8 +82,9 @@ void ibl::Cleanup() {
 }
 
 void ibl::ComputeBRDF(const CliOptions& opts) {
-    Print("Computing BRDF to {} 2-channel {}x{} float texture",
-          opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.texSize);
+    Print("Computing BRDF to {} 2-channel {}x{} float texture at {} spp",
+          opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.texSize,
+          opts.numSamples);
 
     auto defines = GetShaderDefines(opts);
     auto shaders = std::array{"brdf.vert"s, "brdf.frag"s};
@@ -105,7 +106,7 @@ void ibl::ComputeBRDF(const CliOptions& opts) {
 
     RenderQuad();
 
-    SaveImage(opts.outFile, brdfLUT.image());
+    SaveImage(opts.outFile, *brdfLUT.image());
 }
 
 glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
@@ -122,10 +123,11 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
     auto program = CompileAndLinkProgram("convert", shaders);
 
     auto img = util::LoadImage(filePath);
-    if ((img->width / 2) != img->height)
+    auto imgFmt = img->format();
+    if ((imgFmt.width / 2) != imgFmt.height)
         FATAL("Input is not an equirectangular mapping.");
 
-    Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, img->width, img->height, {}};
+    Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, imgFmt.width, imgFmt.height, {}};
     rectMap.upload(*img);
 
     Framebuffer fb{};
@@ -172,7 +174,7 @@ void ibl::ConvertToCubemap(const CliOptions& opts) {
     if (opts.isInputEquirect) {
         // Convert to cubemap and then retrieve data from gpu
         auto cubeTex = SphericalProjToCubemap(opts.inFile, opts.texSize);
-        cubeTex->levels = 1;
+        cubeTex->levels = 1; // Only 1 level
         cube = cubeTex->cubemap();
     } else {
         cube = ImportCubeMap(opts.inFile, opts.importType, nullptr);
@@ -238,8 +240,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.texSize, {}, 6,
-                    opts.mipLevels};
+    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.mipLevels};
     convMap.generateMipmaps();
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
@@ -263,7 +264,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
         glViewport(0, 0, mipSize, mipSize);
         fb.resize(mipSize, mipSize);
 
-        float rough = (float)mip / (float)(opts.mipLevels - 1);
+        float rough = mip / (opts.mipLevels - 1.0f);
         glUniform1f(Roughness, rough);
 
         for (int face = 0; face < 6; ++face) {

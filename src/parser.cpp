@@ -31,10 +31,10 @@ void ValidateOptions(const CliOptions& opts) {
         util::ExitWithError("Input file {} doesn't exist.", opts.inFile);
 */
 
-    if (opts.mode == Mode::Brdf) {
+    /*if (opts.mode == Mode::Brdf) {
         if (path(opts.outFile).extension() == ".hdr")
             FATAL("Exporting the brdf in .hdr format is not supported.");
-    }
+    }*/
 }
 
 CliOptions BuildOptions(ArgumentParser& p) {
