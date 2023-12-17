@@ -89,6 +89,8 @@ CliOptions BuildOptions(ArgumentParser& p) {
 
         opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
         opts.numSamples = irradianceMode.get<unsigned int>("--spp");
+        opts.useHalf = irradianceMode.get<bool>("--use16f");
+
         return opts;
     }
 
@@ -106,6 +108,7 @@ CliOptions BuildOptions(ArgumentParser& p) {
 
         opts.usePrefilteredIS = !convolutionMode.get<bool>("--no-prefiltered");
         opts.numSamples = convolutionMode.get<unsigned int>("--spp");
+        opts.useHalf = convolutionMode.get<bool>("--use16f");
         opts.mipLevels = convolutionMode.get<int>("-l");
         return opts;
     }
@@ -139,6 +142,11 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     ArgumentParser sampled("sampled", "", default_arguments::none);
     sampled.add_argument("--no-prefiltered")
         .help("Disables prefiltered importance sampling.")
+        .nargs(0)
+        .implicit_value(true)
+        .default_value(false);
+    sampled.add_argument("--use16f")
+        .help("Computes result to 16 bit floats.")
         .nargs(0)
         .implicit_value(true)
         .default_value(false);

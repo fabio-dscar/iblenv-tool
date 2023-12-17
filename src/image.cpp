@@ -90,7 +90,7 @@ void Image::setChannel(float val, int x, int y, int c, int lvl) {
 
     switch (fmt.pFmt) {
     case PixelFormat::U8:
-        p16[offset + c] = DecodeU8(val);
+        p8[offset + c] = DecodeU8(val);
         break;
     case PixelFormat::F16:
         p16[offset + c] = val;

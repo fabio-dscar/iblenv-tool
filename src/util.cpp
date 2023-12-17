@@ -53,6 +53,8 @@ std::unique_ptr<Image> util::LoadImage(const std::string& filePath, ImageFormat*
         return LoadEXRImage(filePath);
     else if (ext == ".hdr")
         return LoadHDRImage(filePath);
+    else if (ext == ".png")
+        return LoadPNGImage(filePath);
     else if (ext == ".bin") {
         if (!fmt)
             FATAL("ImageFormat is required for loading raw dumps.");
@@ -61,6 +63,26 @@ std::unique_ptr<Image> util::LoadImage(const std::string& filePath, ImageFormat*
     }
 
     FATAL("Unsupported format {}", ext);
+}
+
+std::unique_ptr<Image> util::LoadPNGImage(const std::string& filePath) {
+    ImageFormat srcFmt{.pFmt = PixelFormat::U8};
+    auto* data = reinterpret_cast<std::byte*>(
+        stbi_load(filePath.c_str(), &srcFmt.width, &srcFmt.height, &srcFmt.nChannels, 0));
+
+    if (!data)
+        FATAL("Failed to load PNG image: {}", filePath);
+
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
+
+    ImageFormat dstFmt = srcFmt;
+    dstFmt.pFmt = PixelFormat::F32;
+    dstFmt.nChannels = 3; // Get rid of alpha if available on source image
+
+    auto retImg = std::make_unique<Image>(dstFmt, Image{srcFmt, data});
+    free(data);
+
+    return retImg;
 }
 
 std::unique_ptr<Image> util::LoadHDRImage(const std::string& filePath) {
@@ -171,13 +193,16 @@ void SaveImgFormatImage(const path& filePath, const ImageSpan& img) {
 void util::SaveMipmappedImage(const path& filePath, const Image& image) {
     const auto& [parent, fname, ext] = SplitFilePath(filePath);
 
+    auto numLevels = image.numLevels();
+
     auto NameOutput = [&](int lvl) -> auto {
-        if (image.numLevels() > 1)
+        if (numLevels > 1)
             return std::format("{}_{}{}", fname, lvl, ext);
         return filePath.filename().string();
     };
 
-    Print("Saving {} mip levels...", image.numLevels());
+    if (numLevels > 1)
+        Print("Saving {} mip levels...", numLevels);
 
     for (int lvl = 0; lvl < image.numLevels(); ++lvl)
         SaveImage(parent / NameOutput(lvl), ImageSpan{image, lvl});
@@ -189,12 +214,28 @@ void util::SaveImage(const std::string& fname, const ImageSpan& image) {
         SaveEXRImage(fname, image);
     else if (ext == ".hdr")
         SaveHDRImage(fname, image);
+    else if (ext == ".png")
+        SavePNGImage(fname, image);
     else if (ext == ".bin")
         SaveRawImage(fname, image);
     else if (ext == ".img")
         SaveImgFormatImage(fname, image);
     else
         FATAL("Unsupported format {}", ext);
+}
+
+void util::SavePNGImage(const std::string& fname, const ImageSpan& image) {
+    auto imgFmt = image.format();
+
+    // Always output 3 channel 8 bit for .png
+    ImageFormat newFmt = imgFmt;
+    newFmt.pFmt = PixelFormat::U8;
+    newFmt.nChannels = 3;
+
+    Image newImg = image.convertTo(newFmt);
+
+    stbi_write_png(fname.c_str(), newFmt.width, newFmt.height, newFmt.nChannels,
+                   newImg.data(), 0);
 }
 
 void util::SaveHDRImage(const std::string& fname, const ImageSpan& image) {

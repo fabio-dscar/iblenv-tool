@@ -1,4 +1,4 @@
-#include <iblcli.h>
+#include <iblapp.h>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -198,7 +198,8 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture irradiance{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize};
+    GLuint intFormat = opts.useHalf ? GL_RGB16F : GL_RGB32F;
+    Texture irradiance{GL_TEXTURE_CUBE_MAP, intFormat, opts.texSize};
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
@@ -240,7 +241,8 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
     fb.addDepthBuffer(opts.texSize, opts.texSize);
     fb.bind();
 
-    Texture convMap{GL_TEXTURE_CUBE_MAP, GL_RGB32F, opts.texSize, opts.mipLevels};
+    GLuint intFormat = opts.useHalf ? GL_RGB16F : GL_RGB32F;
+    Texture convMap{GL_TEXTURE_CUBE_MAP, intFormat, opts.texSize, opts.mipLevels};
     convMap.generateMipmaps();
 
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);

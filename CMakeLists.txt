@@ -13,7 +13,7 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext)
 
 set(IBLENV_SOURCES
-  src/iblcli.cpp
+  src/iblapp.cpp
   src/util.cpp
   src/shader.cpp
   src/geometry.cpp
