@@ -1,7 +1,7 @@
 #ifndef __IBL_PARSER_H__
 #define __IBL_PARSER_H__
 
-#include <string>
+#include <iblenv.h>
 #include <cubemap.h>
 
 namespace ibl {

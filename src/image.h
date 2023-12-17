@@ -1,18 +1,12 @@
 #ifndef __IBL_IMAGE_H__
 #define __IBL_IMAGE_H__
 
-#include <glad/glad.h>
+#include <iblenv.h>
 
-#include <cstring>
-#include <memory>
-#include <cmath>
-#include <cassert>
-#include <array>
 #include <cstdint>
-
-#include <vector>
 #include <variant>
 
+#include <glad/glad.h>
 #include <half/half.hpp>
 
 namespace ibl {
@@ -136,7 +130,7 @@ public:
 
     const std::byte* data() const { return start; }
     std::size_t size() const { return spanSize; }
-    
+
     Image convertTo(ImageFormat newFmt, int lvl = 0) const;
 
     const Image* image() const { return img; }

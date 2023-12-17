@@ -1,11 +1,7 @@
 #ifndef __IBL_SHADER_H__
 #define __IBL_SHADER_H__
 
-#include <filesystem>
-#include <string>
-#include <vector>
-#include <span>
-#include <memory>
+#include <iblenv.h>
 
 #include <glad/glad.h>
 

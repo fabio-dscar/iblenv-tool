@@ -1,15 +1,11 @@
 #include <cubemap.h>
 
 #include <functional>
-#include <map>
-#include <format>
-#include <filesystem>
 #include <regex>
-#include <iostream>
+#include <fstream>
 
 #include <texture.h>
 #include <util.h>
-#include <fstream>
 
 using namespace ibl;
 using namespace ibl::util;

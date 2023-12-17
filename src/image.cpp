@@ -1,9 +1,5 @@
 #include <image.h>
 
-#include <util.h>
-#include <texture.h>
-#include <bit>
-
 using namespace ibl;
 
 float EncodeU8(std::uint8_t u8) {

@@ -1,30 +1,19 @@
 #ifndef __IBL_UTIL_H__
 #define __IBL_UTIL_H__
 
-#include <glad/glad.h>
-#include <string>
+#include <iblenv.h>
+
 #include <optional>
-#include <format>
-#include <memory>
 #include <filesystem>
 
-#include <image.h>
-#include <texture.h>
-
-#include <iostream>
-
-#if defined(DEBUG)
-#define THROW_ERROR(...)                                                                 \
-    throw std::runtime_error(std::format("{} ({}): {}", std::string(__FILE__),           \
-                                         std::to_string(__LINE__),                       \
-                                         std::format(__VA_ARGS__)))
-#else
-#define THROW_ERROR(...) throw std::runtime_error(std::format(__VA_ARGS__))
-#endif
-
-#define FATAL(...) THROW_ERROR(__VA_ARGS__)
+#include <glad/glad.h>
 
 namespace ibl {
+
+struct ImageFormat;
+class Image;
+class ImageSpan;
+
 namespace util {
 
 // --------------------------------------------

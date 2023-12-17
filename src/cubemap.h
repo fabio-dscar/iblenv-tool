@@ -1,10 +1,7 @@
 #ifndef __IBL_CUBEMAP_H__
 #define __IBL_CUBEMAP_H__
 
-#include <string>
-#include <memory>
-#include <vector>
-#include <map>
+#include <iblenv.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 

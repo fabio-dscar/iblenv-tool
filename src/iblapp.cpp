@@ -3,12 +3,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include <cstdlib>
 #include <shader.h>
-#include <iostream>
 #include <util.h>
-#include <format>
 #include <geometry.h>
+#include <texture.h>
+#include <framebuffer.h>
+#include <cubemap.h>
 
 #include <glm/glm.hpp>
 #include <glm/matrix.hpp>
@@ -17,10 +17,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-#include <texture.h>
-#include <framebuffer.h>
-#include <cubemap.h>
 
 using namespace ibl;
 using namespace ibl::util;

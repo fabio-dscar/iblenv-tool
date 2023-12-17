@@ -1,10 +1,8 @@
-#include "glad/glad.h"
-#include "texture.h"
 #include <util.h>
 
+#include <image.h>
+
 #include <fstream>
-#include <iostream>
-#include <filesystem>
 #include <functional>
 #include <unordered_map>
 

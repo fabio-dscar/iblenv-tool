@@ -1,14 +1,10 @@
 #ifndef __IBL_TEXTURE_H__
 #define __IBL_TEXTURE_H__
 
-#include "image.h"
-#include <glad/glad.h>
-#include <map>
-#include <memory>
-#include <cmath>
-#include <vector>
+#include <iblenv.h>
+#include <image.h>
 
-#include <array>
+#include <glad/glad.h>
 
 namespace ibl {
 

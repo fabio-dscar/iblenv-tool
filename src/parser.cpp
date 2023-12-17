@@ -1,115 +1,68 @@
-#include "util.h"
 #include <parser.h>
 
-#include <filesystem>
-
 #include <argparse/argparse.hpp>
+
+#include <filesystem>
 
 using namespace ibl;
 using namespace std::filesystem;
 
 using namespace argparse;
 
-bool IsSupportedFormat(const path& filePath) {
-    static const std::vector formats{".exr", ".hdr", ".bin"};
-    auto ext = filePath.extension();
-    auto res = std::find(formats.begin(), formats.end(), ext);
-    return res != formats.end() || filePath == "";
+void ParseSampledCube(const ArgumentParser& parser, CliOptions& opts) {
+    opts.usePrefilteredIS = !parser.get<bool>("--no-prefiltered");
+    opts.numSamples = parser.get<unsigned int>("--spp");
+    opts.useHalf = parser.get<bool>("--use16f");
 }
 
-void ValidateOptions(const CliOptions& opts) {
-    const static std::vector formats{".exr", ".hdr", ".bin"};
+void ParseFileOpts(const ArgumentParser& parser, CliOptions& opts) {
+    opts.inFile = parser.get("input");
+    opts.outFile = parser.get("out");
+    opts.texSize = parser.get<int>("-s");
 
-    /*if (!IsSupportedFormat(opts.inFile))
-        util::ExitWithError("Input file {} has unsupported format.", opts.inFile);
-
-    if (!IsSupportedFormat(opts.outFile))
-        util::ExitWithError("Output file {} has unsupported format.", opts.outFile);
-*/
-
-    /*if (!exists(opts.inFile))
-        util::ExitWithError("Input file {} doesn't exist.", opts.inFile);
-*/
-
-    /*if (opts.mode == Mode::Brdf) {
-        if (path(opts.outFile).extension() == ".hdr")
-            FATAL("Exporting the brdf in .hdr format is not supported.");
-    }*/
+    opts.isInputEquirect = !parser.is_used("--it");
+    if (!opts.isInputEquirect)
+        opts.importType = static_cast<CubeLayoutType>(parser.get<int>("--it"));
+    opts.exportType = static_cast<CubeLayoutType>(parser.get<int>("--ot"));
 }
 
 CliOptions BuildOptions(ArgumentParser& p) {
     CliOptions opts;
 
-    auto& brdfMode = p.at<ArgumentParser>("brdf");
-    auto& convertMode = p.at<ArgumentParser>("convert");
-    auto& irradianceMode = p.at<ArgumentParser>("irradiance");
-    auto& convolutionMode = p.at<ArgumentParser>("convolution");
+    auto& brdf = p.at<ArgumentParser>("brdf");
+    auto& convert = p.at<ArgumentParser>("convert");
+    auto& irradiance = p.at<ArgumentParser>("irradiance");
+    auto& convolution = p.at<ArgumentParser>("convolution");
 
-    bool usedBrdf = p.is_subcommand_used(brdfMode);
-    bool usedConvert = p.is_subcommand_used(convertMode);
-    bool usedIrr = p.is_subcommand_used(irradianceMode);
-    bool usedConv = p.is_subcommand_used(convolutionMode);
-
-    if (usedBrdf) {
+    if (p.is_subcommand_used(brdf)) {
         opts.mode = Mode::Brdf;
-        opts.outFile = brdfMode.get("out");
-        opts.texSize = brdfMode.get<int>("-s");
-        opts.numSamples = brdfMode.get<unsigned int>("--spp");
-        opts.multiScattering = brdfMode.get<bool>("--ms");
-        opts.useHalf = !brdfMode.get<bool>("--use32f");
-        opts.flipUv = brdfMode.get<bool>("--flip-v");
+        opts.outFile = brdf.get("out");
+        opts.texSize = brdf.get<int>("-s");
+        opts.numSamples = brdf.get<unsigned int>("--spp");
+        opts.multiScattering = brdf.get<bool>("--ms");
+        opts.useHalf = !brdf.get<bool>("--use32f");
+        opts.flipUv = brdf.get<bool>("--flip-v");
         return opts;
     }
 
-    if (usedConvert) {
+    if (p.is_subcommand_used(convert)) {
         opts.mode = Mode::Convert;
-        opts.inFile = convertMode.get("input");
-        opts.outFile = convertMode.get("out");
-        opts.texSize = convertMode.get<int>("-s");
-
-        auto inType = convertMode.get<int>("--it");
-        opts.isInputEquirect = inType == -1;
-        if (!opts.isInputEquirect)
-            opts.importType = static_cast<CubeLayoutType>(inType);
-        opts.exportType = static_cast<CubeLayoutType>(convertMode.get<int>("--ot"));
+        ParseFileOpts(convert, opts);
         return opts;
     }
 
-    if (usedIrr) {
+    if (p.is_subcommand_used(irradiance)) {
         opts.mode = Mode::Irradiance;
-        opts.inFile = irradianceMode.get("input");
-        opts.outFile = irradianceMode.get("out");
-        opts.texSize = irradianceMode.get<int>("-s");
-
-        auto inType = irradianceMode.get<int>("--it");
-        opts.isInputEquirect = inType == -1;
-        if (!opts.isInputEquirect)
-            opts.importType = static_cast<CubeLayoutType>(inType);
-        opts.exportType = static_cast<CubeLayoutType>(irradianceMode.get<int>("--ot"));
-
-        opts.usePrefilteredIS = !irradianceMode.get<bool>("--no-prefiltered");
-        opts.numSamples = irradianceMode.get<unsigned int>("--spp");
-        opts.useHalf = irradianceMode.get<bool>("--use16f");
-
+        ParseFileOpts(irradiance, opts);
+        ParseSampledCube(irradiance, opts);
         return opts;
     }
 
-    if (usedConv) {
+    if (p.is_subcommand_used(convolution)) {
         opts.mode = Mode::Convolution;
-        opts.inFile = convolutionMode.get("input");
-        opts.outFile = convolutionMode.get("out");
-        opts.texSize = convolutionMode.get<int>("-s");
-
-        auto inType = convolutionMode.get<int>("--it");
-        opts.isInputEquirect = inType == -1;
-        if (!opts.isInputEquirect)
-            opts.importType = static_cast<CubeLayoutType>(inType);
-        opts.exportType = static_cast<CubeLayoutType>(convolutionMode.get<int>("--ot"));
-
-        opts.usePrefilteredIS = !convolutionMode.get<bool>("--no-prefiltered");
-        opts.numSamples = convolutionMode.get<unsigned int>("--spp");
-        opts.useHalf = convolutionMode.get<bool>("--use16f");
-        opts.mipLevels = convolutionMode.get<int>("-l");
+        ParseFileOpts(convolution, opts);
+        ParseSampledCube(convolution, opts);
+        opts.mipLevels = convolution.get<int>("-l");
         return opts;
     }
 
@@ -124,8 +77,7 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     inOut.add_argument("--it")
         .help("Type of cubemap mapping for input file.")
         .nargs(1)
-        .default_value(-1)
-        .choices(-1, 0, 1, 2, 3, 4, 5, 6)
+        .choices(0, 1, 2, 3, 4, 5, 6)
         .scan<'d', int>();
     inOut.add_argument("--ot")
         .help("Type of cubemap mapping for output file.")
@@ -232,8 +184,5 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
 
     program.parse_args(argc, argv);
 
-    auto opts = BuildOptions(program);
-    ValidateOptions(opts);
-
-    return opts;
+    return BuildOptions(program);
 }
