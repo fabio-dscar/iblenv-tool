@@ -29,21 +29,7 @@ int ibl::ComponentSize(PixelFormat pFmt) {
 }
 
 Image::Image(ImageFormat format, int levels) : fmt(format), levels(levels) {
-
-    auto numElems = TotalPixels(format, levels) * fmt.nChannels;
-    switch (format.pFmt) {
-    case PixelFormat::U8:
-        p8.reserve(numElems);
-        break;
-    case PixelFormat::F16:
-        p16.reserve(numElems);
-        break;
-    case PixelFormat::F32:
-        p32.reserve(numElems);
-        break;
-    default:
-        FATAL("Unknown pixel format.");
-    }
+    reserveBuffer();
 }
 
 Image::Image(ImageFormat format, const std::byte* imgPtr, int levels)
@@ -52,23 +38,9 @@ Image::Image(ImageFormat format, const std::byte* imgPtr, int levels)
     auto numElems = TotalPixels(format, levels) * fmt.nChannels;
     auto compSize = ComponentSize(fmt.pFmt);
 
-    std::byte* ptr = nullptr;
-    switch (fmt.pFmt) {
-    case PixelFormat::U8:
-        p8.reserve(numElems);
-        ptr = reinterpret_cast<std::byte*>(p8.data());
-        break;
-    case PixelFormat::F16:
-        p16.reserve(numElems);
-        ptr = reinterpret_cast<std::byte*>(p16.data());
-        break;
-    case PixelFormat::F32:
-        p32.reserve(numElems);
-        ptr = reinterpret_cast<std::byte*>(p32.data());
-        break;
-    }
+    reserveBuffer();
 
-    std::copy(imgPtr, imgPtr + numElems * compSize, ptr);
+    std::copy(imgPtr, imgPtr + numElems * compSize, getPtr());
 }
 
 Image::Image(ImageFormat format, const float* imgPtr, int levels)
@@ -80,9 +52,17 @@ Image::Image(ImageFormat format, const float* imgPtr, int levels)
     p32.assign(imgPtr, imgPtr + numElems);
 }
 
-Image::Image(ImageFormat format, const Image& srcImg)
-    : fmt(format), levels(srcImg.levels) {
-    *this = srcImg.convertTo(fmt);
+Image::Image(ImageFormat format, Image&& srcImg) : fmt(format), levels(srcImg.levels) {
+    auto srcFmt = srcImg.format();
+
+    // Move in if equivalent formats, convert from srcImg otherwise
+    if (fmt.pFmt == srcFmt.pFmt && fmt.nChannels == srcFmt.nChannels)
+        *this = std::move(srcImg);
+    else {
+        reserveBuffer();
+        for (int lvl = 0; lvl < levels; ++lvl)
+            copy(srcImg, lvl);
+    }
 }
 
 float Image::channel(int x, int y, int c, int lvl) const {
@@ -135,17 +115,17 @@ void Image::setPixel(const PixelVal& px, int x, int y, int lvl) {
         setChannel(px[c], x, y, c, lvl);
 }
 
-void Image::copy(const Image& srcImg, int lvl) {
-    auto lvlSizes = format(lvl);
-    copy({.sizeX = lvlSizes.width, .sizeY = lvlSizes.height}, srcImg, lvl);
+void Image::copy(const Image& srcImg, int toLvl, int fromLvl) {
+    auto lvlSizes = format(toLvl);
+    copy({.sizeX = lvlSizes.width, .sizeY = lvlSizes.height}, srcImg, toLvl, fromLvl);
 }
 
 void Image::copy(Extents ext, const Image& srcImg, int toLvl, int fromLvl) {
     const auto toX = ext.toX, toY = ext.toY;
     const auto fromX = ext.fromX, fromY = ext.fromY;
 
-    for (int x = 0; x < ext.sizeX; ++x) {
-        for (int y = 0; y < ext.sizeY; ++y) {
+    for (int y = 0; y < ext.sizeY; ++y) {
+        for (int x = 0; x < ext.sizeX; ++x) {
             const auto& px = srcImg.pixel(fromX + x, fromY + y, fromLvl);
             setPixel(px, toX + x, toY + y, toLvl);
         }
@@ -163,12 +143,29 @@ Image Image::convertTo(ImageFormat newFmt, int nLvls) const {
     return newImg;
 }
 
+void Image::reserveBuffer() {
+    auto numElems = TotalPixels(fmt, levels) * fmt.nChannels;
+    switch (fmt.pFmt) {
+    case PixelFormat::U8:
+        p8.reserve(numElems);
+        break;
+    case PixelFormat::F16:
+        p16.reserve(numElems);
+        break;
+    case PixelFormat::F32:
+        p32.reserve(numElems);
+        break;
+    default:
+        FATAL("Unknown pixel format.");
+    }
+}
+
 std::size_t Image::pixelOffset(int x, int y, int lvl) const {
     auto nPixels = TotalPixels(fmt, lvl);
     return nPixels + (y * ResizeLvl(fmt.width, lvl) + x);
 }
 
-const std::byte* Image::ptr() const {
+const std::byte* Image::getPtr() const {
     using enum PixelFormat;
     switch (fmt.pFmt) {
     case U8:
@@ -182,12 +179,26 @@ const std::byte* Image::ptr() const {
     }
 }
 
+std::byte* Image::getPtr() {
+    using enum PixelFormat;
+    switch (fmt.pFmt) {
+    case U8:
+        return reinterpret_cast<std::byte*>(p8.data());
+    case F16:
+        return reinterpret_cast<std::byte*>(p16.data());
+    case F32:
+        return reinterpret_cast<std::byte*>(p32.data());
+    default:
+        FATAL("Unknown pixel format.");
+    }
+}
+
 void Image::flipXY() {
     Image flipImg{format(), levels};
 
     for (int lvl = 0; lvl < levels; ++lvl) {
         const auto lvlFmt = format(lvl);
-        
+
         for (int x = 0; x < lvlFmt.width; ++x) {
             for (int y = 0; y < lvlFmt.height; ++y) {
                 auto px = pixel(lvlFmt.width - 1 - x, lvlFmt.height - 1 - y, lvl);
@@ -200,16 +211,44 @@ void Image::flipXY() {
 }
 
 ImageSpan::ImageSpan(const Image& image)
-    : fmt(image.format()), levels(image.numLevels()) {
+    : img(&image), start(image.data()), spanSize(image.size()),
+      nLevels(image.numLevels()) {}
 
-    start = image.data();
-    spanSize = image.size();
+ImageSpan::ImageSpan(const Image& image, int lvl)
+    : img(&image), start(image.data(lvl)), spanSize(image.size(lvl)), nLevels(1),
+      viewLevel(lvl) {}
+
+Image ImageSpan::convertTo(ImageFormat newFmt, int lvl) const {
+    Image copyImg{newFmt, 1};
+    copyImg.copy(*img, lvl, viewLevel + lvl);
+    return copyImg;
 }
 
-ImageSpan::ImageSpan(const Image& image, int lvl) {
-    start = image.data(lvl);
-    spanSize = image.size(lvl);
+std::unique_ptr<std::byte[]> ibl::ExtractChannel(const Image& image, int c, int lvl) {
+    const auto imgFmt = image.format(lvl);
+    if (c >= imgFmt.nChannels)
+        FATAL("Specified channel number is higher than available channels.");
 
-    fmt = image.format(lvl);
-    levels = 1;
+    auto chSize = image.size(lvl) / imgFmt.nChannels;
+    auto compSize = ComponentSize(imgFmt.pFmt);
+    auto nPixels = imgFmt.width * imgFmt.height;
+
+    auto chData = std::make_unique<std::byte[]>(chSize);
+
+    auto imgPtr = image.data(lvl);
+    auto dstPtr = chData.get();
+
+    for (int p = 0; p < nPixels; ++p) {
+        std::memcpy(dstPtr, imgPtr + compSize * c, compSize);
+        imgPtr += compSize * imgFmt.nChannels;
+        dstPtr += compSize;
+    }
+
+    return chData;
+}
+
+std::unique_ptr<std::byte[]> ibl::ExtractChannel(const ImageSpan imgView, int c,
+                                                 int lvl) {
+    assert(imgView.numLevels() > lvl);
+    return ExtractChannel(*imgView.image(), c, imgView.level() + lvl);
 }

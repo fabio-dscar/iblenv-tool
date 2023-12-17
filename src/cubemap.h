@@ -6,18 +6,12 @@
 #include <vector>
 #include <map>
 
-#include <glm/glm.hpp>
-#include <glm/matrix.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/common.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-#include <image.h>
 
 namespace ibl {
 
-class Texture;
+struct ImageFormat;
+class CubeImage;
 
 static const std::vector CubeMapViews{
     glm::lookAt(glm::vec3{0}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),

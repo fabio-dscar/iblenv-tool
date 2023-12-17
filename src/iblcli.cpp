@@ -127,7 +127,7 @@ std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath
     if ((imgFmt.width / 2) != imgFmt.height)
         FATAL("Input is not an equirectangular mapping.");
 
-    Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, imgFmt.width, imgFmt.height, {}};
+    Texture rectMap{GL_TEXTURE_2D, GL_RGB32F, imgFmt.width, imgFmt.height, 1};
     rectMap.upload(*img);
 
     Framebuffer fb{};

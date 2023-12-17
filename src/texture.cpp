@@ -3,9 +3,6 @@
 
 #include <util.h>
 
-#include <ranges>
-#include <execution>
-
 using namespace ibl;
 
 Texture::Texture(unsigned int target, unsigned int format, int width, int height,
@@ -79,7 +76,8 @@ std::unique_ptr<std::byte[]> Texture::data(int face, int level) const {
 }
 
 void Texture::upload(const ImageSpan& image, int lvl) const {
-    glTextureSubImage2D(handle, lvl, 0, 0, image.width(), image.height(), info->format,
+    auto imgFmt = image.format(lvl);
+    glTextureSubImage2D(handle, lvl, 0, 0, imgFmt.width, imgFmt.height, info->format,
                         info->type, image.data());
 }
 
@@ -96,24 +94,18 @@ std::unique_ptr<Image> Texture::image(int level) const {
     return std::make_unique<Image>(imgFormat(level), data(level).get(), 1);
 }
 
-void ParallelForN(int n, auto&& func) {
-    auto indices = std::views::iota(0, n);
-    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(), func);
-}
-
 std::unique_ptr<CubeImage> Texture::cubemap() const {
     const auto fmt = imgFormat();
 
     auto cube = std::make_unique<CubeImage>(fmt, levels);
 
-    //for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
-    ParallelForN(6, [&](int faceIdx) {
+    for (int faceIdx = 0; faceIdx < 6; ++faceIdx) {
         Image faceImg{fmt, levels};
         for (int lvl = 0; lvl < levels; ++lvl)
             faceImg.copy(face(faceIdx, lvl), lvl);
 
         (*cube)[faceIdx] = std::move(faceImg);
-    });
+    }
 
     return cube;
 }

@@ -60,12 +60,12 @@ public:
     Image(ImageFormat format, int levels);
     Image(ImageFormat format, const std::byte* imgPtr, int levels = 1);
     Image(ImageFormat format, const float* imgPtr, int levels = 1);
-    Image(ImageFormat format, const Image& srcImg);
+    Image(ImageFormat format, Image&& srcImg);
 
     Image convertTo(ImageFormat newFmt, int nLvls = 1) const;
 
     void copy(const Image& srcImg) { *this = srcImg.convertTo(fmt); }
-    void copy(const Image& srcImg, int lvl);
+    void copy(const Image& srcImg, int toLvl, int fromLvl = 0);
     void copy(Extents ext, const Image& srcImg, int toLvl = 0, int fromLvl = 0);
 
     PixelVal pixel(int x, int y, int lvl = 0) const;
@@ -78,7 +78,7 @@ public:
 
     const std::byte* data(int lvl = 0) const {
         std::size_t prevLvlSize = ImageSize(fmt, lvl);
-        return &ptr()[prevLvlSize];
+        return &getPtr()[prevLvlSize];
     }
 
     ImageFormat format(int level = 0) const {
@@ -90,13 +90,14 @@ public:
     std::size_t size(int lvl) const { return ImageSize(format(lvl)); }
     std::size_t size() const { return ImageSize(fmt, levels); }
 
-    int numLevels() const {
-        return levels;
-    }
+    int numLevels() const { return levels; }
 
 private:
+    void reserveBuffer();
     std::size_t pixelOffset(int x, int y, int lvl = 0) const;
-    const std::byte* ptr() const;
+
+    const std::byte* getPtr() const;
+    std::byte* getPtr();
 
     std::vector<std::uint8_t> p8;
     std::vector<Half> p16;
@@ -125,28 +126,36 @@ private:
     int levels = 1;
 };
 
-// Non owning reference to an image (including all levels) or one image level
+// Non owning reference to an image (including all levels) or just one image level
 class ImageSpan {
 public:
     ImageSpan(const Image& image);
     ImageSpan(const Image& image, int lvl);
 
-    ImageFormat format() const {
-        return fmt;
-    }
+    ImageFormat format(int lvl = 0) const { return img->format(viewLevel + lvl); }
 
     const std::byte* data() const { return start; }
     std::size_t size() const { return spanSize; }
+    
+    Image convertTo(ImageFormat newFmt, int lvl = 0) const;
 
-    int width() const { return fmt.width; }
-    int height() const { return fmt.height; }
+    const Image* image() const { return img; }
 
+    int level() const { return viewLevel; }
+    int numLevels() const { return nLevels; }
+
+private:
+    const Image* img;
     const std::byte* start;
     std::size_t spanSize;
 
-    ImageFormat fmt;
-    int levels = 1;
+    // ImageFormat fmt;
+    int nLevels = 1;
+    int viewLevel = 0;
 };
+
+std::unique_ptr<std::byte[]> ExtractChannel(const Image& image, int c, int lvl = 0);
+std::unique_ptr<std::byte[]> ExtractChannel(const ImageSpan imgView, int c, int lvl = 0);
 
 } // namespace ibl
 

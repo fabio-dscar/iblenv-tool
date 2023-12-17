@@ -76,10 +76,10 @@ std::unique_ptr<Image> util::LoadHDRImage(const std::string& filePath) {
     ImageFormat dstFmt = srcFmt;
     dstFmt.nChannels = 3; // Get rid of alpha if available on source image
 
-    Image rawImg{srcFmt, data};
+    auto retImg = std::make_unique<Image>(dstFmt, Image{srcFmt, data});
     free(data);
 
-    return std::make_unique<Image>(dstFmt, rawImg);
+    return retImg;
 }
 
 std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool keepAlpha) {
@@ -106,10 +106,10 @@ std::unique_ptr<Image> util::LoadEXRImage(const std::string& filePath, bool keep
     if (!keepAlpha) // Throw away the alpha on copy
         dstFmt.nChannels = 3;
 
-    Image rawImg{srcFmt, out};
+    auto retImg = std::make_unique<Image>(dstFmt, Image{srcFmt, out});
     free(out);
 
-    return std::make_unique<Image>(dstFmt, rawImg);
+    return retImg;
 }
 
 std::string GetPixelFormat(const ImageFormat& fmt) {
@@ -159,7 +159,7 @@ void SaveImgFormatImage(const path& filePath, const ImageSpan& img) {
     header.compSize = ComponentSize(imgFmt.pFmt);
     header.numChannels = imgFmt.nChannels;
     header.totalSize = img.size();
-    header.levels = img.levels;
+    header.levels = img.numLevels();
 
     auto outName = std::format("{}{}", fname, ".img");
     std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
@@ -198,89 +198,102 @@ void util::SaveImage(const std::string& fname, const ImageSpan& image) {
 }
 
 void util::SaveHDRImage(const std::string& fname, const ImageSpan& image) {
-    stbi_write_hdr(fname.c_str(), image.width(), image.height(), image.format().nChannels,
-                   reinterpret_cast<const float*>(image.data()));
+    auto imgFmt = image.format();
+
+    // Always output 3 channel 32 bit for .HDR
+    ImageFormat newFmt = imgFmt;
+    newFmt.pFmt = PixelFormat::F32;
+    newFmt.nChannels = 3;
+
+    Image newImg = image.convertTo(newFmt);
+
+    stbi_write_hdr(fname.c_str(), newFmt.width, newFmt.height, newFmt.nChannels,
+                   reinterpret_cast<const float*>(newImg.data()));
 
     Print("Saved HDR file {}", fname);
 }
 
 void util::SaveEXRImage(const std::string& fname, const ImageSpan& image) {
-    int width = image.width();
-    int height = image.height();
-    int numChannels = 3;
-    int compSize = ComponentSize(image.format().pFmt);
-    const char* data = reinterpret_cast<const char*>(image.data());
+    using ByteArray = std::unique_ptr<std::byte[]>;
 
+    constexpr int outNumChannels = 3; // Always save 3 channel image
+
+    auto imgFmt = image.format();
+    int nPixels = imgFmt.width * imgFmt.height;
+    int compSize = ComponentSize(imgFmt.pFmt);
+
+    // Allocate buffer set to zero if needed
+    ByteArray zero = nullptr;
+    if (imgFmt.nChannels < outNumChannels)
+        zero = std::make_unique<std::byte[]>(compSize * nPixels);
+
+    // Extract available channels
+    ByteArray chData[outNumChannels];
+    for (int c = 0; c < imgFmt.nChannels; ++c)
+        chData[c] = ExtractChannel(image, c);
+
+    /* ------------------------------------------------------------
+            Setup output EXR
+     -------------------------------------------------------------*/
     EXRHeader header;
     InitEXRHeader(&header);
 
     EXRImage exrImage;
     InitEXRImage(&exrImage);
 
-    exrImage.num_channels = numChannels;
+    // Set pointers in reverse order (BGR), which is what EXR viewers expect
+    std::byte* image_ptr[outNumChannels] = {};
+    for (int c = 0; c < imgFmt.nChannels; ++c)
+        image_ptr[2 - c] = chData[c].get();
 
-    std::vector<char> images[3];
-    images[0].resize(width * height * compSize);
-    images[1].resize(width * height * compSize);
-    images[2].resize(width * height * compSize);
+    // Fill remaining channels with zero (if any)
+    for (int c = imgFmt.nChannels; c < outNumChannels; ++c)
+        image_ptr[2 - c] = zero.get();
 
-    for (int i = 0; i < width * height; i++) {
-        for (int c = 0; c < numChannels; c++) {
-            if (c < image.format().nChannels)
-                std::memcpy(&images[c][i * compSize],
-                            &data[compSize * image.format().nChannels * i + c * compSize],
-                            compSize);
-            // images[c][i] = data[image.numChannels * i + c];
-            else
-                images[c][i * compSize] = 0;
-        }
-    }
-
-    char* image_ptr[3];
-    image_ptr[0] = reinterpret_cast<char*>(&(images[2].at(0))); // B
-    image_ptr[1] = reinterpret_cast<char*>(&(images[1].at(0))); // G
-    image_ptr[2] = reinterpret_cast<char*>(&(images[0].at(0))); // R
-
+    exrImage.width = imgFmt.width;
+    exrImage.height = imgFmt.height;
+    exrImage.num_channels = outNumChannels;
     exrImage.images = (unsigned char**)image_ptr;
-    exrImage.width = width;
-    exrImage.height = height;
 
-    header.num_channels = numChannels;
-    header.channels =
-        (EXRChannelInfo*)malloc(sizeof(EXRChannelInfo) * header.num_channels);
-    // Must be BGR(A) order, since most of EXR viewers expect this channel order.
+    header.num_channels = outNumChannels;
+    header.channels = new EXRChannelInfo[header.num_channels];
 
+    // Must be BGR order
     std::array channelNames{"B", "G", "R"};
-    for (int c = 0; c < numChannels; ++c) {
-        strncpy(header.channels[c].name, channelNames[c], 255);
-        header.channels[c].name[strlen(channelNames[c])] = '\0';
+    for (int c = 0; c < outNumChannels; ++c) {
+        std::strncpy(header.channels[c].name, channelNames[c], 255);
+        header.channels[c].name[std::strlen(channelNames[c])] = '\0';
     }
 
-    header.pixel_types = (int*)malloc(sizeof(int) * header.num_channels);
-    header.requested_pixel_types = (int*)malloc(sizeof(int) * header.num_channels);
+    auto pxFormat = compSize == 2 ? TINYEXR_PIXELTYPE_HALF : TINYEXR_PIXELTYPE_FLOAT;
+    header.pixel_types = new int[header.num_channels];
+    header.requested_pixel_types = new int[header.num_channels];
     for (int i = 0; i < header.num_channels; i++) {
-        header.pixel_types[i] =
-            compSize == 2 ? TINYEXR_PIXELTYPE_HALF
-                          : TINYEXR_PIXELTYPE_FLOAT; // pixel type of input image
-        header.requested_pixel_types[i] =
-            compSize == 2 ? TINYEXR_PIXELTYPE_HALF
-                          : TINYEXR_PIXELTYPE_FLOAT; // pixel type of output image
-        //  to be stored in .EXR
+        // Input type
+        header.pixel_types[i] = pxFormat;
+
+        // Output stored in EXR
+        header.requested_pixel_types[i] = pxFormat;
     }
 
     const char* err;
     int ret = SaveEXRImageToFile(&exrImage, &header, fname.c_str(), &err);
     if (ret != TINYEXR_SUCCESS) {
         std::string errMsg = err;
+
         FreeEXRErrorMessage(err);
+        delete[] header.channels;
+        delete[] header.pixel_types;
+        delete[] header.requested_pixel_types;
+
         FATAL("Error saving EXR image {}", errMsg);
     }
 
     Print("Saved EXR file {}", fname);
 
-    free(header.channels);
-    free(header.pixel_types);
-    free(header.requested_pixel_types);
+    delete[] header.channels;
+    delete[] header.pixel_types;
+    delete[] header.requested_pixel_types;
 }
 
 std::optional<std::string> util::ReadTextFile(const std::string& filepath,

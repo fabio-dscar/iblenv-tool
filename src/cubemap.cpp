@@ -246,8 +246,6 @@ void ExportCustom(const path& filePath, const CubeImage& cube) {
     file.close();
 }
 
-typedef std::chrono::high_resolution_clock Clock;
-
 void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
                         CubeImage& cube) {
 
