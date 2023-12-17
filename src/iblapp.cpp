@@ -293,7 +293,7 @@ std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
     case Irradiance:
         if (opts.divideLambertConstant)
             defines.emplace_back("DIVIDED_PI");
-
+        [[fallthrough]];
     case Convolution:
         if (opts.usePrefilteredIS)
             defines.emplace_back("PREFILTERED_IS");

@@ -48,5 +48,6 @@ add_custom_command(TARGET iblenv POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/glsl ${CMAKE_BINARY_DIR}/glsl
 )
 
-set(RELEASE_FLAGS "-march=native" "-mtune=native") # "-flto")
-target_compile_options(iblenv PUBLIC "$<$<CONFIG:RELEASE>:${RELEASE_FLAGS}>")
+set(DEBUG_FLAGS -Wall -Wextra -Wpedantic)
+set(RELEASE_FLAGS -O3 -march=native)
+target_compile_options(iblenv PRIVATE "$<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:${RELEASE_FLAGS}>" "$<$<CONFIG:Debug>:${DEBUG_FLAGS}>")

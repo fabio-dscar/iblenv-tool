@@ -265,14 +265,11 @@ auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
         return std::format("{}_{}{}", fname, FaceNames.at(face), ext);
     };
 
-    std::unique_ptr<CubeImage> cube = nullptr;
+    auto cube = std::make_unique<CubeImage>();
 
     for (const auto& [face, name] : FaceNames) {
         auto inputName = NameInput(face);
-        auto imgFace = LoadImage(filePath, fmt);
-
-        if (!cube)
-            cube = std::make_unique<CubeImage>(imgFace->format(), 1);
+        auto imgFace = LoadImage(parent / inputName, fmt);
 
         (*cube)[face] = std::move(*imgFace);
     }
