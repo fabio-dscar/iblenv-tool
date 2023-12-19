@@ -32,7 +32,7 @@ CliOptions BuildOptions(ArgumentParser& p) {
     auto& brdf = p.at<ArgumentParser>("brdf");
     auto& convert = p.at<ArgumentParser>("convert");
     auto& irradiance = p.at<ArgumentParser>("irradiance");
-    auto& convolution = p.at<ArgumentParser>("convolution");
+    auto& specular = p.at<ArgumentParser>("specular");
 
     if (p.is_subcommand_used(brdf)) {
         opts.mode = Mode::Brdf;
@@ -58,11 +58,11 @@ CliOptions BuildOptions(ArgumentParser& p) {
         return opts;
     }
 
-    if (p.is_subcommand_used(convolution)) {
-        opts.mode = Mode::Convolution;
-        ParseFileOpts(convolution, opts);
-        ParseSampledCube(convolution, opts);
-        opts.mipLevels = convolution.get<int>("-l");
+    if (p.is_subcommand_used(specular)) {
+        opts.mode = Mode::Specular;
+        ParseFileOpts(specular, opts);
+        ParseSampledCube(specular, opts);
+        opts.mipLevels = specular.get<int>("-l");
         return opts;
     }
 
@@ -159,17 +159,11 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     irradiance.add_description("");
     irradiance.add_parents(inOut, sampled);
 
-    irradiance.add_argument("--sph")
-        .help("Spherical harmonics order number to compute irradiance with.")
-        .nargs(1)
-        .default_value(-1)
-        .scan<'i', int>();
+    ArgumentParser specular("specular");
+    specular.add_description("");
+    specular.add_parents(inOut, sampled);
 
-    ArgumentParser convolution("convolution");
-    convolution.add_description("");
-    convolution.add_parents(inOut, sampled);
-
-    convolution.add_argument("-l", "--levels")
+    specular.add_argument("-l", "--levels")
         .help("Specifies the number of levels in the output cubemap.")
         .nargs(1)
         .default_value(9)
@@ -180,7 +174,7 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     program.add_subparser(brdfCmd);
     program.add_subparser(convert);
     program.add_subparser(irradiance);
-    program.add_subparser(convolution);
+    program.add_subparser(specular);
 
     program.parse_args(argc, argv);
 

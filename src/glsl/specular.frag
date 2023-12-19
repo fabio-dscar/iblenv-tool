@@ -7,7 +7,7 @@ layout(location = 3) uniform samplerCube EnvMap;
 layout(location = 4) uniform int NumSamples;
 layout(location = 5) uniform float Roughness;
 
-vec3 EnvironmentConvolution(vec3 N) {
+vec3 EnvSpecularConvolution(vec3 N) {
     vec3 V = N; // Simplification
 
     vec3 Lsum = vec3(0.0);
@@ -55,5 +55,5 @@ vec3 EnvironmentConvolution(vec3 N) {
 void main() {
     vec3 Normal = normalize(WorldPos);
 
-    FragColor = vec4(EnvironmentConvolution(Normal), 1.0);
+    FragColor = vec4(EnvSpecularConvolution(Normal), 1.0);
 }

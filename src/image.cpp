@@ -25,7 +25,7 @@ int ibl::ComponentSize(PixelFormat pFmt) {
 }
 
 Image::Image(ImageFormat format, int levels) : fmt(format), levels(levels) {
-    reserveBuffer();
+    resizeBuffer();
 }
 
 Image::Image(ImageFormat format, const std::byte* imgPtr, int levels)
@@ -34,7 +34,7 @@ Image::Image(ImageFormat format, const std::byte* imgPtr, int levels)
     auto numElems = TotalPixels(format, levels) * fmt.nChannels;
     auto compSize = ComponentSize(fmt.pFmt);
 
-    reserveBuffer();
+    resizeBuffer();
 
     std::copy(imgPtr, imgPtr + numElems * compSize, getPtr());
 }
@@ -55,7 +55,7 @@ Image::Image(ImageFormat format, Image&& srcImg) : fmt(format), levels(srcImg.le
     if (fmt.pFmt == srcFmt.pFmt && fmt.nChannels == srcFmt.nChannels)
         *this = std::move(srcImg);
     else {
-        reserveBuffer();
+        resizeBuffer();
         for (int lvl = 0; lvl < levels; ++lvl)
             copy(srcImg, lvl);
     }
@@ -139,17 +139,17 @@ Image Image::convertTo(ImageFormat newFmt, int nLvls) const {
     return newImg;
 }
 
-void Image::reserveBuffer() {
+void Image::resizeBuffer() {
     auto numElems = TotalPixels(fmt, levels) * fmt.nChannels;
     switch (fmt.pFmt) {
     case PixelFormat::U8:
-        p8.reserve(numElems);
+        p8.resize(numElems);
         break;
     case PixelFormat::F16:
-        p16.reserve(numElems);
+        p16.resize(numElems);
         break;
     case PixelFormat::F32:
-        p32.reserve(numElems);
+        p32.resize(numElems);
         break;
     default:
         FATAL("Unknown pixel format.");

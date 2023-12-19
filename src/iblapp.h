@@ -21,7 +21,7 @@ std::vector<std::string> GetShaderDefines(const CliOptions& opts);
 
 void InitOpenGL();
 void ComputeBRDF(const CliOptions& opts);
-void ComputeConvolution(const CliOptions& opts);
+void ComputeSpecular(const CliOptions& opts);
 void ComputeIrradiance(const CliOptions& opts);
 void ConvertToCubemap(const CliOptions& opts);
 void Cleanup();
@@ -42,8 +42,8 @@ inline void ExecuteJob(const CliOptions& opts) {
         ConvertToCubemap(opts);
     else if (opts.mode == Mode::Irradiance)
         ComputeIrradiance(opts);
-    else if (opts.mode == Mode::Convolution)
-        ComputeConvolution(opts);
+    else if (opts.mode == Mode::Specular)
+        ComputeSpecular(opts);
 
     Cleanup();
 }

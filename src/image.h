@@ -87,7 +87,7 @@ public:
     int numLevels() const { return levels; }
 
 private:
-    void reserveBuffer();
+    void resizeBuffer();
     std::size_t pixelOffset(int x, int y, int lvl = 0) const;
 
     const std::byte* getPtr() const;

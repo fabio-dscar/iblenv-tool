@@ -6,7 +6,7 @@
 
 namespace ibl {
 
-enum class Mode { Unknown, Brdf, Irradiance, Convert, Convolution };
+enum class Mode { Unknown, Brdf, Irradiance, Convert, Specular };
 
 struct CliOptions {
     Mode mode = Mode::Unknown;

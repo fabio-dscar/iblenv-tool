@@ -224,10 +224,10 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
     ExportCubemap(opts.outFile, opts.exportType, *irradiance.cubemap());
 }
 
-void ibl::ComputeConvolution(const CliOptions& opts) {
+void ibl::ComputeSpecular(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
-    auto shaders = std::array{"convert.vert"s, "convolution.frag"s};
-    auto program = CompileAndLinkProgram("convolution", shaders, defines);
+    auto shaders = std::array{"convert.vert"s, "specular.frag"s};
+    auto program = CompileAndLinkProgram("specular", shaders, defines);
 
     auto envMap = LoadEnvironment(opts);
     envMap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -244,7 +244,7 @@ void ibl::ComputeConvolution(const CliOptions& opts) {
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
 
-    Print("Computing cube convolution [{}px cube, {} levels, {} spp, {} prefiltered IS]",
+    Print("Computing cube specular convolution [{}px cube, {} levels, {} spp, {} prefiltered IS]",
           opts.texSize, opts.mipLevels, opts.numSamples,
           opts.usePrefilteredIS ? "with" : "without");
 
@@ -294,7 +294,7 @@ std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
         if (opts.divideLambertConstant)
             defines.emplace_back("DIVIDED_PI");
         [[fallthrough]];
-    case Convolution:
+    case Specular:
         if (opts.usePrefilteredIS)
             defines.emplace_back("PREFILTERED_IS");
         break;
