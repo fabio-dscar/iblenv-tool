@@ -55,7 +55,7 @@ void ibl::InitOpenGL() {
     Print("OpenGL Version: {}", version);
     Print("GLSL Version: {}\n", glslVer);
 
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
@@ -258,7 +258,7 @@ void ibl::ComputeSpecular(const CliOptions& opts) {
     envMap->bind();
 
     for (int mip = 0; mip < opts.mipLevels; ++mip) {
-        int mipSize = opts.texSize * std::pow(0.5, mip);
+        int mipSize = ResizeLvl(opts.texSize, mip);
         glViewport(0, 0, mipSize, mipSize);
         fb.resize(mipSize, mipSize);
 

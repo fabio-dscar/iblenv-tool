@@ -27,8 +27,6 @@ set(IBLENV_SOURCES
 add_executable(iblenv src/main.cpp ${IBLENV_SOURCES})
 target_compile_features(iblenv PUBLIC cxx_std_20)
 target_compile_definitions(iblenv PUBLIC "$<$<CONFIG:Debug>:DEBUG>")
-# target_compile_options(iblenv PRIVATE -fsanitize=address)
-# target_link_options(iblenv PRIVATE -fsanitize=address)
 target_include_directories(iblenv PUBLIC
   src
   ext  
@@ -50,4 +48,5 @@ add_custom_command(TARGET iblenv POST_BUILD
 
 set(DEBUG_FLAGS -Wall -Wextra -Wpedantic)
 set(RELEASE_FLAGS -O3 -march=native)
-target_compile_options(iblenv PRIVATE "$<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:${RELEASE_FLAGS}>" "$<$<CONFIG:Debug>:${DEBUG_FLAGS}>")
+target_compile_options(iblenv PRIVATE "$<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:${RELEASE_FLAGS}>" 
+                                      "$<$<CONFIG:Debug>:${DEBUG_FLAGS}>")
