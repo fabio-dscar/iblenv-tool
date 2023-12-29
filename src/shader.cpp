@@ -9,6 +9,18 @@ using namespace ibl;
 using namespace ibl::util;
 using namespace std::filesystem;
 
+Shader::Shader(const std::string& name, ShaderType type, const std::string& src)
+    : name(name), source(src), type(type) {
+    handle = glCreateShader(type);
+    if (handle == 0)
+        FATAL("Could not create shader {}", name);
+
+    if (!hasVersionDir())
+        setVersion(DefaultVer);
+
+    handleIncludes();
+}
+
 void Shader::handleIncludes() {
     std::regex rgx(R"([ ]*#[ ]*include[ ]+[\"<](.*)[\">].*)");
     std::smatch smatch;
@@ -16,7 +28,7 @@ void Shader::handleIncludes() {
 
     while (std::regex_search(source, smatch, rgx)) {
         auto file = smatch[1].str();
-        if (std::find(processed.begin(), processed.end(), file) != processed.end()) 
+        if (std::find(processed.begin(), processed.end(), file) != processed.end())
             FATAL("Repeated/Recursively including '{}' at '{}'.", file, name);
 
         auto filePath = ShaderFolder / file;
@@ -30,13 +42,40 @@ void Shader::handleIncludes() {
     }
 }
 
-void Shader::compile(const std::string& defines) {
-    handle = glCreateShader(type);
-    if (handle == 0)
-        FATAL("Could not create shader {}", name);
+bool Shader::hasVersionDir() {
+    return source.find("#version ") != std::string::npos;
+}
 
-    const char* sources[] = {defines.c_str(), source.c_str()};
-    glShaderSource(handle, 2, sources, 0);
+void Shader::setVersion(const std::string& ver) {
+    auto start = source.find("#version");
+
+    auto directive = std::format("#version {}\n", ver);
+    if (start != std::string::npos) {
+        auto end = source.find('\n', start);
+        source.replace(start, end - start, directive);
+    } else {
+        source.insert(0, directive);
+    }
+}
+
+void Shader::include(const std::string& include) {
+    auto start = source.find("#version");
+    auto end = 0;
+
+    if (start != std::string::npos)
+        end = source.find('\n', start);
+
+    source.insert(end + 1, include);
+}
+
+void Shader::compile(const std::string& defines) {
+    if (handle == 0)
+        FATAL("Trying to compile shader {} with invalid handle.", name);
+
+    include(defines);
+
+    const char* sources[] = {source.c_str()};
+    glShaderSource(handle, 1, sources, 0);
     glCompileShader(handle);
 
     GLint result;
@@ -68,19 +107,15 @@ void Program::link() {
 
     glLinkProgram(handle);
 
+    for (GLuint sid : srcHandles)
+        glDetachShader(handle, sid);
+
     GLint res;
     glGetProgramiv(handle, GL_LINK_STATUS, &res);
     if (res != GL_TRUE) {
-        for (GLuint sid : srcHandles)
-            glDetachShader(handle, sid);
-
         std::string message = GetProgramError(handle);
         FATAL("Program linking error: {}", message);
     }
-
-    // Detach shaders after successful linking
-    for (GLuint sid : srcHandles)
-        glDetachShader(handle, sid);
 }
 
 void Program::cleanShaders() {
@@ -134,7 +169,7 @@ Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
 }
 
 std::string ibl::BuildDefinesBlock(std::span<std::string> defines) {
-    std::string defBlock = VerDirective;
+    std::string defBlock = "";
     for (auto& def : defines) {
         if (!def.empty()) {
             defBlock.append("#define ");

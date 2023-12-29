@@ -14,20 +14,23 @@ enum ShaderType {
     COMPUTE_SHADER = GL_COMPUTE_SHADER
 };
 
-static const std::string VerDirective = "#version 460 core\n\n";
+static const std::string DefaultVer = "460 core";
 static const std::filesystem::path ShaderFolder = "./glsl";
 
 class Shader {
 public:
-    Shader(const std::string& name, ShaderType type, const std::string& src)
-        : name(name), source({src}), type(type) {
-        handleIncludes();
-    }
+    Shader(const std::string& name, ShaderType type, const std::string& src);
+
+    void setVersion(const std::string& ver);
+    void include(const std::string& source);
 
     unsigned int id() const { return handle; }
-    void compile(const std::string& defines = VerDirective);
+    void compile(const std::string& defines = "");
 
 private:
+    std::string getVersion();
+    bool hasVersionDir();
+
     void handleIncludes();
 
     std::string name;

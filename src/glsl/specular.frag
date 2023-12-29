@@ -1,7 +1,7 @@
 #include <common.frag>
 
 in vec3 WorldPos;
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
 
 layout(location = 3) uniform samplerCube EnvMap;
 layout(location = 4) uniform int NumSamples;

@@ -55,6 +55,7 @@ CliOptions BuildOptions(ArgumentParser& p) {
         opts.mode = Mode::Irradiance;
         ParseFileOpts(irradiance, opts);
         ParseSampledCube(irradiance, opts);
+        opts.divideLambertConstant = irradiance.get<bool>("--div-pi");
         return opts;
     }
 
@@ -158,6 +159,12 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     ArgumentParser irradiance("irradiance");
     irradiance.add_description("");
     irradiance.add_parents(inOut, sampled);
+
+    irradiance.add_argument("--div-pi")
+        .help("Includes the lambertian constant division in the calculation.")
+        .nargs(0)
+        .implicit_value(true)
+        .default_value(false);
 
     ArgumentParser specular("specular");
     specular.add_description("");

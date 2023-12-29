@@ -29,7 +29,7 @@ void ibl::InitOpenGL() {
         FATAL("Couldn't initialize OpenGL context.");
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(1, 1, "iblenv", NULL, NULL);
     if (!window) {
         glfwTerminate();
         FATAL("Couldn't create GLFW window.");
@@ -38,7 +38,7 @@ void ibl::InitOpenGL() {
 
     int glver = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     if (glver == 0)
-        FATAL("Failed to initialize OpenGL context");
+        FATAL("Failed to initialize OpenGL loader");
 
 #ifdef DEBUG
     glEnable(GL_DEBUG_OUTPUT);
@@ -63,7 +63,7 @@ void ibl::InitOpenGL() {
     glClearDepth(1.0);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-    glDisable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     glDisable(GL_CULL_FACE); // We're rendering skybox back faces
 }
@@ -187,8 +187,8 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
     auto program = CompileAndLinkProgram("irradiance", shaders, defines);
 
     auto envMap = LoadEnvironment(opts);
-    envMap->generateMipmaps();
     envMap->setParam(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    envMap->generateMipmaps();
 
     Framebuffer fb{};
     fb.addDepthBuffer(opts.texSize, opts.texSize);
@@ -244,7 +244,8 @@ void ibl::ComputeSpecular(const CliOptions& opts) {
     auto projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 5.0f);
     auto modelMatrix = ScaleAndRotateY({1, 1, 1}, 0);
 
-    Print("Computing cube specular convolution [{}px cube, {} levels, {} spp, {} prefiltered IS]",
+    Print("Computing cube specular convolution [{}px cube, {} levels, {} spp, {} "
+          "prefiltered IS]",
           opts.texSize, opts.mipLevels, opts.numSamples,
           opts.usePrefilteredIS ? "with" : "without");
 

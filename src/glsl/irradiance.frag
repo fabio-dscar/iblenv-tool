@@ -1,6 +1,6 @@
 #include <common.frag>
 
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
 in vec3 WorldPos;
 
 layout(location = 3) uniform samplerCube EnvMap;
@@ -39,7 +39,7 @@ vec3 EnvironmentIrradiance(vec3 N) {
     }
 
 #ifdef DIVIDED_PI
-    return E_d / (PI * CosHemisPdf * NumSamples);
+    return E_d / NumSamples;  // PI and CosHemisPdf cancel out
 #else
     return E_d / (CosHemisPdf * NumSamples);
 #endif

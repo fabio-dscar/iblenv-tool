@@ -1,7 +1,7 @@
 #include <common.frag>
 
 in vec2 FsTexCoords;
-out vec2 FragColor;
+layout(location = 0) out vec2 FragColor;
 
 layout(location = 1) uniform int NumSamples;
 
