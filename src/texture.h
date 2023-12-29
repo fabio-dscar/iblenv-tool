@@ -47,7 +47,7 @@ public:
     void generateMipmaps() const;
     void setParam(GLenum param, GLint val) const;
 
-    void upload(const ImageSpan& image, int lvl = 0) const;
+    void upload(const ImageView& image, int lvl = 0) const;
     void upload(const CubeImage& cubemap) const;
 
     std::size_t sizeBytes(unsigned int level = 0) const;

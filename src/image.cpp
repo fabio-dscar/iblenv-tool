@@ -206,15 +206,15 @@ void Image::flipXY() {
     *this = std::move(flipImg);
 }
 
-ImageSpan::ImageSpan(const Image& image)
+ImageView::ImageView(const Image& image)
     : img(&image), start(image.data()), spanSize(image.size()),
       nLevels(image.numLevels()) {}
 
-ImageSpan::ImageSpan(const Image& image, int lvl)
+ImageView::ImageView(const Image& image, int lvl)
     : img(&image), start(image.data(lvl)), spanSize(image.size(lvl)), nLevels(1),
       viewLevel(lvl) {}
 
-Image ImageSpan::convertTo(ImageFormat newFmt, int lvl) const {
+Image ImageView::convertTo(ImageFormat newFmt, int lvl) const {
     Image copyImg{newFmt, 1};
     copyImg.copy(*img, lvl, viewLevel + lvl);
     return copyImg;
@@ -243,7 +243,7 @@ std::unique_ptr<std::byte[]> ibl::ExtractChannel(const Image& image, int c, int 
     return chData;
 }
 
-std::unique_ptr<std::byte[]> ibl::ExtractChannel(const ImageSpan imgView, int c,
+std::unique_ptr<std::byte[]> ibl::ExtractChannel(const ImageView imgView, int c,
                                                  int lvl) {
     assert(imgView.numLevels() > lvl);
     return ExtractChannel(*imgView.image(), c, imgView.level() + lvl);

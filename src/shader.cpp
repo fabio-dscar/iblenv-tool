@@ -32,7 +32,7 @@ void Shader::handleIncludes() {
             FATAL("Repeated/Recursively including '{}' at '{}'.", file, name);
 
         auto filePath = ShaderFolder / file;
-        auto src = util::ReadTextFile(filePath, std::ios_base::in);
+        auto src = util::ReadTextFile(filePath);
         if (!src)
             FATAL("Couldn't open included shader '{}' in '{}'", file, name);
 
@@ -161,7 +161,7 @@ Shader ibl::LoadShaderFile(const std::string& fileName) {
 
 Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
     auto filePath = ShaderFolder / fileName;
-    auto source = util::ReadTextFile(ShaderFolder / fileName, std::ios_base::in);
+    auto source = util::ReadTextFile(ShaderFolder / fileName);
     if (!source.has_value())
         FATAL("Couldn't load shader file {}", filePath.string());
 
@@ -171,11 +171,8 @@ Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
 std::string ibl::BuildDefinesBlock(std::span<std::string> defines) {
     std::string defBlock = "";
     for (auto& def : defines) {
-        if (!def.empty()) {
-            defBlock.append("#define ");
-            defBlock.append(def.begin(), def.end());
-            defBlock.append("\n");
-        }
+        if (!def.empty())
+            defBlock.append(std::format("#define {}\n", def));
     }
     return defBlock;
 }

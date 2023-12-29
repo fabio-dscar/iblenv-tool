@@ -72,7 +72,7 @@ std::unique_ptr<std::byte[]> Texture::data(int face, int level) const {
     return dataPtr;
 }
 
-void Texture::upload(const ImageSpan& image, int lvl) const {
+void Texture::upload(const ImageView& image, int lvl) const {
     auto imgFmt = image.format(lvl);
     glTextureSubImage2D(handle, lvl, 0, 0, imgFmt.width, imgFmt.height, info->format,
                         info->type, image.data());

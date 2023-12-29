@@ -121,10 +121,10 @@ private:
 };
 
 // Non owning reference to an image (including all levels) or just one image level
-class ImageSpan {
+class ImageView {
 public:
-    ImageSpan(const Image& image);
-    ImageSpan(const Image& image, int lvl);
+    ImageView(const Image& image);
+    ImageView(const Image& image, int lvl);
 
     ImageFormat format(int lvl = 0) const { return img->format(viewLevel + lvl); }
 
@@ -149,7 +149,7 @@ private:
 };
 
 std::unique_ptr<std::byte[]> ExtractChannel(const Image& image, int c, int lvl = 0);
-std::unique_ptr<std::byte[]> ExtractChannel(const ImageSpan imgView, int c, int lvl = 0);
+std::unique_ptr<std::byte[]> ExtractChannel(const ImageView imgView, int c, int lvl = 0);
 
 } // namespace ibl
 
