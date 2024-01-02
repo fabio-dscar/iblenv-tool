@@ -7,7 +7,6 @@
 
 using namespace ibl;
 using namespace ibl::util;
-using namespace std::filesystem;
 
 Shader::Shader(const std::string& name, ShaderType type, const std::string& src)
     : name(name), source(src), type(type) {
@@ -144,24 +143,23 @@ std::string ibl::GetProgramError(unsigned int handle) {
     return {log.get()};
 }
 
-Shader ibl::LoadShaderFile(const std::string& fileName) {
+Shader ibl::LoadShaderFile(const fs::path& filePath) {
     ShaderType type = FRAGMENT_SHADER;
 
     // Deduce type from extension, if possible
-    auto ext = path(fileName).extension();
+    auto ext = filePath.extension();
     if (ext == ".frag" || ext == ".fs")
         type = FRAGMENT_SHADER;
     else if (ext == ".vert" || ext == ".vs")
         type = VERTEX_SHADER;
     else
-        FATAL("Couldn't deduce type for shader: {}", fileName);
+        FATAL("Couldn't deduce type for shader: {}", filePath.string());
 
-    return LoadShaderFile(type, fileName);
+    return LoadShaderFile(type, filePath);
 }
 
-Shader ibl::LoadShaderFile(ShaderType type, const std::string& fileName) {
-    auto filePath = ShaderFolder / fileName;
-    auto source = util::ReadTextFile(ShaderFolder / fileName);
+Shader ibl::LoadShaderFile(ShaderType type, const fs::path& filePath) {
+    auto source = util::ReadTextFile(filePath);
     if (!source.has_value())
         FATAL("Couldn't load shader file {}", filePath.string());
 
@@ -185,7 +183,7 @@ std::unique_ptr<Program> ibl::CompileAndLinkProgram(const std::string& name,
     auto defines = BuildDefinesBlock(definesList);
 
     for (auto& fname : sourceNames) {
-        Shader s = LoadShaderFile(fname);
+        Shader s = LoadShaderFile(ShaderFolder / fname);
         s.compile(defines);
         program->addShader(s);
     }

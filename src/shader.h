@@ -5,6 +5,8 @@
 
 #include <glad/glad.h>
 
+namespace fs = std::filesystem;
+
 namespace ibl {
 
 enum ShaderType {
@@ -15,7 +17,7 @@ enum ShaderType {
 };
 
 static const std::string DefaultVer = "460 core";
-static const std::filesystem::path ShaderFolder = "./glsl";
+static const fs::path ShaderFolder = "./glsl";
 
 class Shader {
 public:
@@ -55,8 +57,9 @@ private:
     unsigned int handle = 0;
 };
 
-Shader LoadShaderFile(const std::string& filePath);
-Shader LoadShaderFile(ShaderType type, const std::string& filePath);
+Shader LoadShaderFile(const fs::path& filePath);
+Shader LoadShaderFile(ShaderType type, const fs::path& filePath);
+
 std::unique_ptr<Program> CompileAndLinkProgram(const std::string& name,
                                                std::span<std::string> sourceNames,
                                                std::span<std::string> definesList = {});

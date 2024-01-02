@@ -2,12 +2,13 @@ cmake_minimum_required (VERSION 3.20)
 
 include(FetchContent)
 
-#########################################
-## zlib
+# ---------------------------------------------------------------------------------------
+#     zlib
+# ---------------------------------------------------------------------------------------
 FetchContent_Declare(
   ZLIB
   GIT_REPOSITORY https://github.com/madler/zlib.git
-  GIT_TAG        09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851 # v1.3
+  GIT_TAG        09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851
   FIND_PACKAGE_ARGS
 )
 
@@ -21,14 +22,16 @@ else()
   set(ZLIB_LIBRARIES zlibstatic PARENT_SCOPE)
 endif()
 
-##################################
-## OpenGL
+# ---------------------------------------------------------------------------------------
+#     OpenGL
+# ---------------------------------------------------------------------------------------
 find_package(OpenGL REQUIRED)
 
 set(OPENGL_LIBRARIES ${OPENGL_LIBRARIES} PARENT_SCOPE)
 
-#########################################
-## glad
+# ---------------------------------------------------------------------------------------
+#     glad
+# ---------------------------------------------------------------------------------------
 set(GLAD_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glad/include PARENT_SCOPE)
 set(GLAD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c PARENT_SCOPE)
 
@@ -38,8 +41,9 @@ target_include_directories(glad PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/glad/include
 
 set_property(TARGET glad PROPERTY FOLDER "ext")
 
-#########################################
-## glfw
+# ---------------------------------------------------------------------------------------
+#     glfw
+# ---------------------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL " " FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL " " FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL " " FORCE)
@@ -57,8 +61,9 @@ FetchContent_MakeAvailable(glfw)
 set(GLFW_INCLUDE_DIR ${glfw_SOURCE_DIR}/include PARENT_SCOPE)
 set(GLFW_LIBRARIES glfw PARENT_SCOPE)
 
-#########################################
-## glm
+# ---------------------------------------------------------------------------------------
+#     glm
+# ---------------------------------------------------------------------------------------
 set(BUILD_TESTING OFF CACHE BOOL " " FORCE)
 FetchContent_Declare(
   glm
