@@ -16,8 +16,8 @@ enum ShaderType {
     COMPUTE_SHADER = GL_COMPUTE_SHADER
 };
 
-static const std::string DefaultVer = "460 core";
-static const fs::path ShaderFolder = "./glsl";
+const std::string DefaultVer = "460 core";
+const fs::path ShaderFolder = "./glsl";
 
 class Shader {
 public:

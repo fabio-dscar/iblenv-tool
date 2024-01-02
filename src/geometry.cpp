@@ -5,8 +5,10 @@
 
 using namespace ibl;
 
-static GLuint QuadVao, QuadVbo;
-static GLuint CubeVao, CubeVbo, CubeVboIdx;
+namespace {
+GLuint QuadVao, QuadVbo;
+GLuint CubeVao, CubeVbo, CubeVboIdx;
+} // namespace
 
 void ibl::RenderQuad() {
     if (QuadVao == 0) {

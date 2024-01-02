@@ -26,19 +26,21 @@ using namespace std::literals;
 
 namespace fs = std::filesystem;
 
-std::unique_ptr<Image> LoadImageDump(const std::string& filePath,
-                                     const ImageFormat& fmt) {
-    std::ifstream file(filePath, std::ios_base::in | std::ios_base::binary);
+std::unique_ptr<Image> LoadImageDump(const fs::path& filePath, const ImageFormat& fmt) {
+    std::ifstream file(filePath,
+                       std::ios_base::in | std::ios_base::binary | std::ios_base::ate);
     if (file.fail())
-        FATAL("Failed to open file {}", filePath);
+        FATAL("Failed to open file {}", filePath.string());
 
-    file.seekg(0, std::ios::end);
     auto size = file.tellg();
+    if (size == -1)
+        FATAL("Failed to query file size of {}.", filePath.string());
+
     file.seekg(0, std::ios::beg);
 
     auto imgSize = ibl::ImageSize(fmt);
     if (size != static_cast<long>(imgSize))
-        FATAL("Incompatible format specified for image {}", filePath);
+        FATAL("Incompatible format specified for image {}", filePath.string());
 
     auto data = std::make_unique<std::byte[]>(size);
     file.read(reinterpret_cast<char*>(data.get()), size);

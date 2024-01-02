@@ -22,7 +22,9 @@ using namespace ibl;
 using namespace ibl::util;
 using namespace std::literals;
 
-static GLFWwindow* window;
+namespace {
+GLFWwindow* window;
+}
 
 void ibl::InitOpenGL() {
     if (!glfwInit())

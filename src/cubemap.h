@@ -10,7 +10,7 @@ namespace ibl {
 struct ImageFormat;
 class CubeImage;
 
-static const std::vector CubeMapViews{
+const std::vector CubeMapViews{
     glm::lookAt(glm::vec3{0}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
     glm::lookAt(glm::vec3{0}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}),
     glm::lookAt(glm::vec3{0}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}),
@@ -28,7 +28,7 @@ enum class CubeLayoutType {
     Custom = 6
 };
 
-static const std::map<CubeLayoutType, std::string> LayoutNames{
+const std::map<CubeLayoutType, std::string> LayoutNames{
     {CubeLayoutType::HorizontalCross,    "Horizontal Cross"         },
     {CubeLayoutType::InvHorizontalCross, "Inverted Horizontal Cross"},
     {CubeLayoutType::Sequence,           "Sequence"                 },
