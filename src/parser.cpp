@@ -73,7 +73,7 @@ CliOptions BuildOptions(ArgumentParser& p) {
 CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     /* --------------  Shared -------------- */
     ArgumentParser inOut("inout", "", default_arguments::none);
-    inOut.add_argument("input").help("Specifies the input file.").nargs(1);
+    inOut.add_argument("input").help("Input filename.").nargs(1);
     inOut.add_argument("out").help("Output filename.").nargs(1);
     inOut.add_argument("--it")
         .help("Type of cubemap mapping for input file.")
@@ -87,7 +87,7 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .choices(0, 1, 2, 3, 4, 5, 6)
         .scan<'d', int>();
     inOut.add_argument("-s", "--cubeSize")
-        .help("Specifies the size of the cubemap.")
+        .help("Size of the output cubemap.")
         .nargs(1)
         .default_value(1024)
         .scan<'d', int>();
@@ -104,37 +104,37 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .implicit_value(true)
         .default_value(false);
     sampled.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
+        .help("Number of samples per pixel.")
         .nargs(1)
         .default_value(2048u)
         .scan<'u', unsigned int>();
 
     /* --------------  Program -------------- */
     ArgumentParser program("iblenv", "1.0");
-    program.add_description("ibl tool");
+    program.add_description("Environment IBL precomputation tool.");
 
     ArgumentParser brdfCmd("brdf");
     brdfCmd.add_description("Computes microfacet brdf into a lookup texture.");
     brdfCmd.add_argument("out")
         .help("Filename for output file. By default dumps the bytes raw out of OpenGL "
-              "('bin' extension).")
+              "('.bin' extension).")
         .nargs(1)
         .default_value("brdf.bin");
 
     brdfCmd.add_argument("-s", "--texsize")
-        .help("Specifies the width and height of the output texture.")
+        .help("Width and height of the output texture.")
         .nargs(1)
         .default_value(1024)
         .scan<'i', int>();
 
     brdfCmd.add_argument("--spp")
-        .help("Specifies the number of samples per pixel.")
+        .help("Number of samples per pixel.")
         .nargs(1)
         .default_value(4096u)
         .scan<'u', unsigned int>();
 
     brdfCmd.add_argument("--use32f")
-        .help("Compute brdf into a 32 bit float texture.")
+        .help("Output 32 bit float texture.")
         .nargs(0)
         .implicit_value(true)
         .default_value(false);
@@ -153,11 +153,12 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .default_value(false);
 
     ArgumentParser convert("convert");
-    convert.add_description("");
+    convert.add_description("Converts between multiple cubemap layouts or from a "
+                            "equirectangular projection into a cubemap.");
     convert.add_parents(inOut);
 
     ArgumentParser irradiance("irradiance");
-    irradiance.add_description("");
+    irradiance.add_description("Computes irradiance into a cubemap.");
     irradiance.add_parents(inOut, sampled);
 
     irradiance.add_argument("--div-pi")
@@ -167,11 +168,12 @@ CliOptions ibl::ParseArgs(int argc, char* argv[]) {
         .default_value(false);
 
     ArgumentParser specular("specular");
-    specular.add_description("");
+    specular.add_description("Computes separable specular lobe convolution to use with "
+                             "brdf's precomputation. Outputs several cube mip levels.");
     specular.add_parents(inOut, sampled);
 
     specular.add_argument("-l", "--levels")
-        .help("Specifies the number of levels in the output cubemap.")
+        .help("Number of mip levels in the output cubemap.")
         .nargs(1)
         .default_value(9)
         .scan<'i', int>();
