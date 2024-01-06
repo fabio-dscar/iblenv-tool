@@ -2,6 +2,8 @@
 
 using namespace ibl;
 
+namespace {
+
 float EncodeU8(std::uint8_t u8) {
     return u8 / 255.0f;
 }
@@ -10,6 +12,8 @@ std::uint8_t DecodeU8(float f32) {
     f32 = std::min(1.0f, std::max(0.0f, f32));
     return static_cast<uint8_t>(f32 * 255.0f + 0.5f);
 }
+
+} // namespace
 
 int ibl::ComponentSize(PixelFormat pFmt) {
     switch (pFmt) {
@@ -207,11 +211,11 @@ void Image::flipXY() {
 }
 
 ImageView::ImageView(const Image& image)
-    : img(&image), start(image.data()), spanSize(image.size()),
+    : img(&image), start(image.data()), viewSize(image.size()),
       nLevels(image.numLevels()) {}
 
 ImageView::ImageView(const Image& image, int lvl)
-    : img(&image), start(image.data(lvl)), spanSize(image.size(lvl)), nLevels(1),
+    : img(&image), start(image.data(lvl)), viewSize(image.size(lvl)), nLevels(1),
       viewLevel(lvl) {}
 
 Image ImageView::convertTo(ImageFormat newFmt, int lvl) const {

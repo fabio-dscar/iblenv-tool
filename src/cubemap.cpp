@@ -11,7 +11,9 @@ using namespace ibl;
 using namespace ibl::util;
 using namespace std::filesystem;
 
-static const std::map<int, std::string> FaceNames{
+namespace {
+
+const std::map<int, std::string> FaceNames{
     {0, "+X"},
     {1, "-X"},
     {2, "+Y"},
@@ -156,7 +158,7 @@ MappingFunc getMapping<VerticalCross>() {
     };
 }
 
-static const std::map<CubeLayoutType, MappingFunc> CubeMappings{
+const std::map<CubeLayoutType, MappingFunc> CubeMappings{
     {Sequence,           getMapping<Sequence>()          },
     {VerticalSequence,   getMapping<VerticalSequence>()  },
     {HorizontalCross,    getMapping<HorizontalCross>()   },
@@ -207,14 +209,14 @@ void ExportCombined(const path& filePath, MappingFunc mapFunc, const CubeImage& 
 // clang-format on
 
 struct CubeHeader {
-    char id[4] = {'C', 'U', 'B', 'E'};
-    unsigned int fmt;
-    unsigned int width;
-    unsigned int height;
-    unsigned int compSize;
-    unsigned int numChannels;
-    unsigned int totalSize;
-    unsigned int levels;
+    std::uint8_t id[4] = {'C', 'U', 'B', 'E'};
+    std::uint32_t fmt;
+    std::int32_t width;
+    std::int32_t height;
+    std::uint32_t compSize;
+    std::int32_t numChannels;
+    std::uint32_t totalSize;
+    std::uint32_t levels;
 };
 
 void ExportCustom(const path& filePath, const CubeImage& cube) {
@@ -224,7 +226,7 @@ void ExportCustom(const path& filePath, const CubeImage& cube) {
     auto faceSize = cube[0].size();
 
     CubeHeader header;
-    header.fmt = 0;
+    header.fmt = static_cast<std::uint32_t>(imgFmt.pFmt);
     header.width = imgFmt.width;
     header.height = imgFmt.height;
     header.compSize = ComponentSize(imgFmt.pFmt);
@@ -234,28 +236,10 @@ void ExportCustom(const path& filePath, const CubeImage& cube) {
 
     auto outName = std::format("{}{}", fname, ".cube");
     std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
-    file.write((const char*)&header, sizeof(CubeHeader));
+    file.write(reinterpret_cast<const char*>(&header), sizeof(CubeHeader));
 
     for (int face = 0; face < 6; ++face)
         file.write(reinterpret_cast<const char*>(cube[face].data()), faceSize);
-
-    file.close();
-}
-
-void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
-                        CubeImage& cube) {
-
-    if (type == CubeLayoutType::Separate)
-        ExportSeparate(filePath, cube);
-    else if (type == CubeLayoutType::Custom)
-        ExportCustom(filePath, cube);
-    else {
-        // Special case: invert -Z in both axis
-        if (type == CubeLayoutType::VerticalCross)
-            cube[5].flipXY();
-
-        ExportCombined(filePath, CubeMappings.at(type), cube);
-    }
 }
 
 auto ImportSeparate(const path& filePath, ImageFormat* fmt) {
@@ -309,6 +293,24 @@ auto ImportCombined(const path& filePath, CubeLayoutType type, MappingFunc mapFu
     return cube;
 }
 // clang-format on
+
+} // namespace
+
+void ibl::ExportCubemap(const std::string& filePath, CubeLayoutType type,
+                        CubeImage& cube) {
+
+    if (type == CubeLayoutType::Separate)
+        ExportSeparate(filePath, cube);
+    else if (type == CubeLayoutType::Custom)
+        ExportCustom(filePath, cube);
+    else {
+        // Special case: invert -Z in both axis
+        if (type == CubeLayoutType::VerticalCross)
+            cube[5].flipXY();
+
+        ExportCombined(filePath, CubeMappings.at(type), cube);
+    }
+}
 
 std::unique_ptr<CubeImage> ibl::ImportCubeMap(const std::string& filePath,
                                               CubeLayoutType type, ImageFormat* reqFmt) {

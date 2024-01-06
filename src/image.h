@@ -2,18 +2,14 @@
 #define __IBL_IMAGE_H__
 
 #include <iblenv.h>
-
-#include <cstdint>
 #include <variant>
-
-#include <glad/glad.h>
 #include <half/half.hpp>
 
 namespace ibl {
 
-typedef half_float::half Half;
+using Half = half_float::half;
 
-enum class PixelFormat { U8, F16, F32 };
+enum class PixelFormat : std::uint32_t { U8, F16, F32 };
 
 struct ImageFormat {
     PixelFormat pFmt = PixelFormat::F32;
@@ -48,7 +44,7 @@ inline std::size_t ImageSize(ImageFormat fmt, int levels = 1) {
 // Mipmapped image
 class Image {
 public:
-    typedef std::array<float, 4> PixelVal;
+    using PixelVal = std::array<float, 4>;
 
     Image() = default;
     Image(ImageFormat format, int levels);
@@ -129,7 +125,7 @@ public:
     ImageFormat format(int lvl = 0) const { return img->format(viewLevel + lvl); }
 
     const std::byte* data() const { return start; }
-    std::size_t size() const { return spanSize; }
+    std::size_t size() const { return viewSize; }
 
     Image convertTo(ImageFormat newFmt, int lvl = 0) const;
 
@@ -141,9 +137,8 @@ public:
 private:
     const Image* img;
     const std::byte* start;
-    std::size_t spanSize;
+    std::size_t viewSize;
 
-    // ImageFormat fmt;
     int nLevels = 1;
     int viewLevel = 0;
 };

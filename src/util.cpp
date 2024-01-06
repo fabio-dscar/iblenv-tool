@@ -26,7 +26,9 @@ using namespace std::literals;
 
 namespace fs = std::filesystem;
 
-std::unique_ptr<Image> LoadImageDump(const fs::path& filePath, const ImageFormat& fmt) {
+namespace {
+
+std::unique_ptr<Image> LoadRawImage(const fs::path& filePath, const ImageFormat& fmt) {
     std::ifstream file(filePath,
                        std::ios_base::in | std::ios_base::binary | std::ios_base::ate);
     if (file.fail())
@@ -48,6 +50,63 @@ std::unique_ptr<Image> LoadImageDump(const fs::path& filePath, const ImageFormat
     return std::make_unique<Image>(fmt, data.get(), 1);
 }
 
+std::string GetPixelFormat(const ImageFormat& fmt) {
+    static const std::array NumChannels{"R"s, "RG"s, "RGB"s};
+    static const std::map<PixelFormat, std::string> PixelFormat{
+        {PixelFormat::U8,  "8"  },
+        {PixelFormat::F16, "16F"},
+        {PixelFormat::F32, "32F"}
+    };
+
+    return std::format("{}{}", NumChannels[fmt.nChannels - 1], PixelFormat.at(fmt.pFmt));
+}
+
+void SaveRawImage(const fs::path& filePath, const ImageView& image) {
+    std::ofstream file(filePath, std::ios_base::out | std::ios_base::binary);
+    file.write(reinterpret_cast<const char*>(image.data()), image.size());
+
+    auto imgFmt = image.format();
+    Print("Saved raw image data successfully:\n\n{}\nDimensions: {}x{}\nPixel Format: "
+          "{}\nSize: {} bytes\n",
+          filePath.filename().string(), imgFmt.width, imgFmt.height,
+          GetPixelFormat(imgFmt), image.size());
+}
+
+struct ImgHeader {
+    std::uint8_t id[4] = {'I', 'M', 'G', ' '};
+    std::uint32_t fmt;
+    std::int32_t width;
+    std::int32_t height;
+    std::int32_t depth;
+    std::uint32_t compSize;
+    std::int32_t numChannels;
+    std::uint32_t totalSize;
+    std::uint32_t levels;
+};
+
+void SaveImgFormatImage(const fs::path& filePath, const ImageView& img) {
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+
+    auto imgFmt = img.format();
+
+    ImgHeader header;
+    header.fmt = static_cast<std::uint32_t>(imgFmt.pFmt);
+    header.width = imgFmt.width;
+    header.height = imgFmt.height;
+    header.depth = 0;
+    header.compSize = ComponentSize(imgFmt.pFmt);
+    header.numChannels = imgFmt.nChannels;
+    header.totalSize = img.size();
+    header.levels = img.numLevels();
+
+    auto outName = std::format("{}{}", fname, ".img");
+    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
+    file.write(reinterpret_cast<const char*>(&header), sizeof(ImgHeader));
+    file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
+}
+
+} // namespace
+
 std::unique_ptr<Image> util::LoadImage(const fs::path& filePath, ImageFormat* fmt) {
     auto ext = filePath.extension().string();
     if (ext == ".exr")
@@ -60,7 +119,7 @@ std::unique_ptr<Image> util::LoadImage(const fs::path& filePath, ImageFormat* fm
         if (!fmt)
             FATAL("ImageFormat is required for loading raw dumps.");
 
-        return LoadImageDump(filePath, *fmt);
+        return LoadRawImage(filePath, *fmt);
     }
 
     FATAL("Unsupported format {}", ext);
@@ -133,62 +192,6 @@ std::unique_ptr<Image> util::LoadEXRImage(const fs::path& filePath, bool keepAlp
     free(out);
 
     return retImg;
-}
-
-std::string GetPixelFormat(const ImageFormat& fmt) {
-    static const std::array NumChannels{"R"s, "RG"s, "RGB"s};
-    static const std::map<PixelFormat, std::string> PixelFormat{
-        {PixelFormat::U8,  "8"  },
-        {PixelFormat::F16, "16F"},
-        {PixelFormat::F32, "32F"}
-    };
-
-    return std::format("{}{}", NumChannels[fmt.nChannels - 1], PixelFormat.at(fmt.pFmt));
-}
-
-void SaveRawImage(const fs::path& filePath, const ImageView& image) {
-    std::ofstream file(filePath, std::ios_base::out | std::ios_base::binary);
-    file.write(reinterpret_cast<const char*>(image.data()), image.size());
-
-    auto imgFmt = image.format();
-    Print("Saved raw image data successfully:\n\n{}\nDimensions: {}x{}\nPixel Format: "
-          "{}\nSize: {} bytes\n",
-          filePath.filename().string(), imgFmt.width, imgFmt.height,
-          GetPixelFormat(imgFmt), image.size());
-}
-
-struct ImgHeader {
-    char id[4] = {'I', 'M', 'G', ' '};
-    unsigned int fmt;
-    unsigned int width;
-    unsigned int height;
-    unsigned int depth;
-    unsigned int compSize;
-    unsigned int numChannels;
-    unsigned int totalSize;
-    unsigned int levels;
-};
-
-void SaveImgFormatImage(const fs::path& filePath, const ImageView& img) {
-    const auto& [parent, fname, ext] = SplitFilePath(filePath);
-
-    auto imgFmt = img.format();
-
-    ImgHeader header;
-    header.fmt = 0;
-    header.width = imgFmt.width;
-    header.height = imgFmt.height;
-    header.depth = 0;
-    header.compSize = ComponentSize(imgFmt.pFmt);
-    header.numChannels = imgFmt.nChannels;
-    header.totalSize = img.size();
-    header.levels = img.numLevels();
-
-    auto outName = std::format("{}{}", fname, ".img");
-    std::ofstream file(parent / outName, std::ios_base::out | std::ios_base::binary);
-    file.write((const char*)&header, sizeof(ImgHeader));
-    file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
-    file.close();
 }
 
 void util::SaveMipmappedImage(const fs::path& filePath, const Image& image) {
