@@ -337,7 +337,7 @@ void util::SaveEXRImage(const fs::path& filePath, const ImageView& image) {
 std::optional<std::string> util::ReadTextFile(const fs::path& filePath) {
     std::ifstream file(filePath, std::ios_base::in | std::ios_base::ate);
     if (file.fail()) {
-        PrintError(std::format("Failed to open file", filePath.string()));
+        PrintError(std::format("Failed to open file {}", filePath.string()));
         return std::nullopt;
     }
 

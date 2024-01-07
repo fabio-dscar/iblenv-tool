@@ -1,5 +1,7 @@
 #include <shader.h>
 
+#include <glad/glad.h>
+
 #include <regex>
 #include <iostream>
 
@@ -8,9 +10,23 @@
 using namespace ibl;
 using namespace ibl::util;
 
-Shader::Shader(const std::string& name, ShaderType type, const std::string& src)
-    : name(name), source(src), type(type) {
-    handle = glCreateShader(type);
+namespace {
+
+const std::string DefaultVer = "460 core";
+const fs::path ShaderFolder = "./glsl";
+
+} // namespace
+
+enum class ibl::ShaderType : unsigned int {
+    Vertex = GL_VERTEX_SHADER,
+    Fragment = GL_FRAGMENT_SHADER,
+    Geometry = GL_GEOMETRY_SHADER,
+    Compute = GL_COMPUTE_SHADER
+};
+
+Shader::Shader(const fs::path& path, ShaderType type, const std::string& src)
+    : path(path), name(path.filename()), source(src), type(type) {
+    handle = glCreateShader(static_cast<GLenum>(type));
     if (handle == 0)
         FATAL("Could not create shader {}", name);
 
@@ -30,7 +46,7 @@ void Shader::handleIncludes() {
         if (std::find(processed.begin(), processed.end(), file) != processed.end())
             FATAL("Repeated/Recursively including '{}' at '{}'.", file, name);
 
-        auto filePath = ShaderFolder / file;
+        auto filePath = path.parent_path() / file;
         auto src = util::ReadTextFile(filePath);
         if (!src)
             FATAL("Couldn't open included shader '{}' in '{}'", file, name);
@@ -144,14 +160,15 @@ std::string ibl::GetProgramError(unsigned int handle) {
 }
 
 Shader ibl::LoadShaderFile(const fs::path& filePath) {
-    ShaderType type = FRAGMENT_SHADER;
+    using enum ShaderType;
+    ShaderType type = Fragment;
 
     // Deduce type from extension, if possible
     auto ext = filePath.extension();
     if (ext == ".frag" || ext == ".fs")
-        type = FRAGMENT_SHADER;
+        type = Fragment;
     else if (ext == ".vert" || ext == ".vs")
-        type = VERTEX_SHADER;
+        type = Vertex;
     else
         FATAL("Couldn't deduce type for shader: {}", filePath.string());
 
@@ -163,7 +180,7 @@ Shader ibl::LoadShaderFile(ShaderType type, const fs::path& filePath) {
     if (!source.has_value())
         FATAL("Couldn't load shader file {}", filePath.string());
 
-    return {filePath.filename(), type, source.value()};
+    return {filePath, type, source.value()};
 }
 
 std::string ibl::BuildDefinesBlock(std::span<std::string> defines) {

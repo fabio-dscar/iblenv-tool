@@ -3,25 +3,15 @@
 
 #include <iblenv.h>
 
-#include <glad/glad.h>
-
 namespace fs = std::filesystem;
 
 namespace ibl {
 
-enum ShaderType {
-    VERTEX_SHADER = GL_VERTEX_SHADER,
-    FRAGMENT_SHADER = GL_FRAGMENT_SHADER,
-    GEOMETRY_SHADER = GL_GEOMETRY_SHADER,
-    COMPUTE_SHADER = GL_COMPUTE_SHADER
-};
-
-const std::string DefaultVer = "460 core";
-const fs::path ShaderFolder = "./glsl";
+enum class ShaderType : unsigned int;
 
 class Shader {
 public:
-    Shader(const std::string& name, ShaderType type, const std::string& src);
+    Shader(const fs::path& path, ShaderType type, const std::string& src);
 
     void setVersion(const std::string& ver);
     void include(const std::string& source);
@@ -35,6 +25,7 @@ private:
 
     void handleIncludes();
 
+    fs::path path;
     std::string name;
     std::string source;
     ShaderType type;

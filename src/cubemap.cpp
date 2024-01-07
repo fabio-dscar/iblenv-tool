@@ -216,7 +216,7 @@ struct CubeHeader {
     std::uint32_t compSize;
     std::int32_t numChannels;
     std::uint32_t totalSize;
-    std::uint32_t levels;
+    std::int32_t levels;
 };
 
 void ExportCustom(const path& filePath, const CubeImage& cube) {
