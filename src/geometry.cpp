@@ -22,12 +22,13 @@ void ibl::RenderQuad() {
 
         glCreateVertexArrays(1, &QuadVao);
         glCreateBuffers(1, &QuadVbo);
-        glEnableVertexArrayAttrib(QuadVao, 0);
         glVertexArrayVertexBuffer(QuadVao, 0, QuadVbo, 0, vertexSize);
+        glEnableVertexArrayAttrib(QuadVao, 0);
+        glVertexArrayAttribBinding(QuadVao, 0, 0);
         glVertexArrayAttribFormat(QuadVao, 0, 3, GL_FLOAT, GL_FALSE, 0);
         glEnableVertexArrayAttrib(QuadVao, 1);
-        glVertexArrayVertexBuffer(QuadVao, 1, QuadVbo, 3 * sizeof(float), vertexSize);
-        glVertexArrayAttribFormat(QuadVao, 1, 2, GL_FLOAT, GL_FALSE, 0);
+        glVertexArrayAttribBinding(QuadVao, 1, 0);
+        glVertexArrayAttribFormat(QuadVao, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
         glNamedBufferStorage(QuadVbo, sizeof(quadVertices), &quadVertices, 0);
     }
 
@@ -44,10 +45,13 @@ void ibl::RenderCube() {
         unsigned int indices[] = {0, 1, 2, 1, 0, 3, 4, 5, 7, 7, 6, 4, 6, 3, 0, 0, 4, 6,
                                   7, 2, 1, 2, 7, 5, 0, 2, 5, 5, 4, 0, 3, 7, 1, 7, 3, 6};
 
+        constexpr std::size_t vertexSize = 3 * sizeof(float);
+
         glCreateVertexArrays(1, &CubeVao);
         glCreateBuffers(1, &CubeVbo);
+        glVertexArrayVertexBuffer(CubeVao, 0, CubeVbo, 0, vertexSize);
         glEnableVertexArrayAttrib(CubeVao, 0);
-        glVertexArrayVertexBuffer(CubeVao, 0, CubeVbo, 0, 3 * sizeof(float));
+        glVertexArrayAttribBinding(QuadVao, 0, 0);
         glVertexArrayAttribFormat(CubeVao, 0, 3, GL_FLOAT, GL_FALSE, 0);
         glNamedBufferStorage(CubeVbo, sizeof(vertices), &vertices, 0);
         glCreateBuffers(1, &CubeVboIdx);
