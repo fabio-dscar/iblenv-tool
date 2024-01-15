@@ -8,7 +8,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-
 # ---------------------------------------------------------------------------------------
 #     Third party libs
 # ---------------------------------------------------------------------------------------
@@ -36,6 +35,7 @@ target_include_directories(iblenv PUBLIC
   ${GLAD_INCLUDE_DIR}
   ${ZLIB_INCLUDE_DIR}
   ${GLM_INCLUDE_DIR}
+  ${STB_INCLUDE_DIR}
 )
 target_link_libraries(iblenv PRIVATE
   glad

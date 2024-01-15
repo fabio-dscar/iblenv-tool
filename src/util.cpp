@@ -16,9 +16,9 @@
 #define STBI_NO_BMP
 #define STBI_NO_JPEG
 #define STBI_NO_GIF
-#include <stb/stb_image.h>
+#include <stb_image.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb/stb_image_write.h>
+#include <stb_image_write.h>
 
 using namespace ibl;
 using namespace ibl::util;

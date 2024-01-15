@@ -74,10 +74,23 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
-if (GLM_FOUND)
+if(GLM_FOUND)
   set(GLM_INCLUDE_DIR ${GLM_INCLUDE_DIRS} PARENT_SCOPE)
   set(GLM_LIBRARIES ${GLM_LIBRARIES} PARENT_SCOPE)
 else()
   set(GLM_INCLUDE_DIR ${glm_SOURCE_DIR} PARENT_SCOPE)
   set(GLM_LIBRARIES glm PARENT_SCOPE)
 endif()
+
+# ---------------------------------------------------------------------------------------
+#     stb
+# ---------------------------------------------------------------------------------------
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG        f4a71b13373436a2866c5d68f8f80ac6f0bc1ffe
+)
+
+FetchContent_MakeAvailable(stb)
+
+set(STB_INCLUDE_DIR ${stb_SOURCE_DIR} PARENT_SCOPE)
