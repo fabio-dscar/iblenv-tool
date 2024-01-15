@@ -13,15 +13,15 @@ struct ibl::FormatInfo {
 namespace {
 
 const std::map<unsigned int, FormatInfo> TexFormatInfo{
-    {GL_R8,      {1, PixelFormat::U8, GL_R8, GL_R, GL_UNSIGNED_BYTE}      },
+    {GL_R8,      {1, PixelFormat::U8, GL_R8, GL_RED, GL_UNSIGNED_BYTE}    },
     {GL_RG8,     {2, PixelFormat::U8, GL_RG8, GL_RG, GL_UNSIGNED_BYTE}    },
     {GL_RGB8,    {3, PixelFormat::U8, GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE}  },
     {GL_RGBA8,   {4, PixelFormat::U8, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE}},
-    {GL_R16F,    {1, PixelFormat::F16, GL_R16F, GL_R, GL_HALF_FLOAT}      },
+    {GL_R16F,    {1, PixelFormat::F16, GL_R16F, GL_RED, GL_HALF_FLOAT}    },
     {GL_RG16F,   {2, PixelFormat::F16, GL_RG16F, GL_RG, GL_HALF_FLOAT}    },
     {GL_RGB16F,  {3, PixelFormat::F16, GL_RGB16F, GL_RGB, GL_HALF_FLOAT}  },
     {GL_RGBA16F, {4, PixelFormat::F16, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT}},
-    {GL_R32F,    {1, PixelFormat::F32, GL_R32F, GL_R, GL_FLOAT}           },
+    {GL_R32F,    {1, PixelFormat::F32, GL_R32F, GL_RED, GL_FLOAT}         },
     {GL_RG32F,   {2, PixelFormat::F32, GL_RG32F, GL_RG, GL_FLOAT}         },
     {GL_RGB32F,  {3, PixelFormat::F32, GL_RGB32F, GL_RGB, GL_FLOAT}       },
     {GL_RGBA32F, {4, PixelFormat::F32, GL_RGBA32F, GL_RGBA, GL_FLOAT}     },
