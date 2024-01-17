@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include <parser.h>
 #include <shader.h>
 #include <util.h>
 #include <geometry.h>
@@ -23,97 +24,55 @@ using namespace ibl::util;
 using namespace std::literals;
 
 namespace {
+
+enum UniformLocs {
+    Projection = 0,
+    View = 1,
+    Model = 2,
+    EnvMap = 3,
+    NumSamples = 4,
+    Roughness = 5,
+};
+
 GLFWwindow* window;
-}
-
-void ibl::InitOpenGL() {
-    if (!glfwInit())
-        FATAL("Couldn't initialize OpenGL context.");
-
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    window = glfwCreateWindow(1, 1, "iblenv", NULL, NULL);
-    if (!window) {
-        glfwTerminate();
-        FATAL("Couldn't create GLFW window.");
-    }
-    glfwMakeContextCurrent(window);
-
-    int glver = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-    if (glver == 0)
-        FATAL("Failed to initialize OpenGL loader");
-
-#ifdef DEBUG
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(OpenGLErrorCallback, 0);
-#endif
-
-    // Print system info
-    auto renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
-    auto vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
-    auto version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
-    auto glslVer =
-        reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
-    Print("OpenGL Renderer: {} ({})", renderer, vendor);
-    Print("OpenGL Version: {}", version);
-    Print("GLSL Version: {}\n", glslVer);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
-    glDepthRange(0.0, 1.0);
-    glClearDepth(1.0);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
-    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
-    glDisable(GL_CULL_FACE); // We're rendering skybox back faces
-}
-
-void ibl::Cleanup() {
-    CleanupGeometry();
-
-    if (window) {
-        glfwDestroyWindow(window);
-        glfwTerminate();
-    }
-}
-
-void ibl::ComputeBRDF(const CliOptions& opts) {
-    Print("Computing BRDF to {0} 2-channel {1}x{1} float texture at {2} spp",
-          opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.numSamples);
-
-    auto defines = GetShaderDefines(opts);
-    auto shaders = std::array{"brdf.vert"s, "brdf.frag"s};
-    auto program = CompileAndLinkProgram("brdf", shaders, defines);
-
-    GLenum intFormat = opts.useHalf ? GL_RG16F : GL_RG32F;
-    Texture brdfLUT{GL_TEXTURE_2D, intFormat, opts.texSize};
-
-    Framebuffer fb{};
-    fb.addDepthBuffer(brdfLUT.width, brdfLUT.height);
-    fb.addTextureBuffer(GL_COLOR_ATTACHMENT0, brdfLUT);
-    fb.bind();
-
-    glViewport(0, 0, brdfLUT.width, brdfLUT.height);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glUseProgram(program->id());
-    glUniform1i(1, opts.numSamples);
-
-    RenderQuad();
-
-    SaveImage(opts.outFile, *brdfLUT.image());
-}
 
 glm::mat4 ScaleAndRotateY(const glm::vec3& scale, float degs) {
     auto I = glm::identity<glm::mat4>();
     return glm::scale(I, scale) * glm::rotate(I, glm::radians(degs), {0, 1, 0});
 }
 
-std::unique_ptr<Texture> ibl::SphericalProjToCubemap(const std::string& filePath,
-                                                     int cubeSize, float degs,
-                                                     bool swapHand) {
+std::vector<std::string> GetShaderDefines(const CliOptions& opts) {
+    auto defines = std::vector<std::string>{};
+
+    using enum Mode;
+    switch (opts.mode) {
+    case Brdf:
+        if (opts.multiScattering)
+            defines.emplace_back("MULTISCATTERING");
+
+        if (opts.flipUv)
+            defines.emplace_back("FLIP_V");
+        break;
+
+    case Irradiance:
+        if (opts.divideLambertConstant)
+            defines.emplace_back("DIVIDED_PI");
+        [[fallthrough]];
+    case Specular:
+        if (opts.usePrefilteredIS)
+            defines.emplace_back("PREFILTERED_IS");
+        break;
+
+    default:
+        break;
+    }
+
+    return defines;
+}
+
+std::unique_ptr<Texture> SphericalProjToCubemap(const std::string& filePath, int cubeSize,
+                                                float degs = 0.0f,
+                                                bool swapHand = false) {
     Print("Converting spherical projection [to {}px cube]", cubeSize);
 
     auto shaders = std::array{"convert.vert"s, "convert.frag"s};
@@ -166,7 +125,80 @@ auto LoadEnvironment(const CliOptions& opts, ImageFormat* reqFmt = nullptr) {
     return std::make_unique<Texture>(*cube);
 }
 
-void ibl::ConvertToCubemap(const CliOptions& opts) {
+void InitOpenGL() {
+    if (!glfwInit())
+        FATAL("Couldn't initialize OpenGL context.");
+
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    window = glfwCreateWindow(1, 1, "iblenv", NULL, NULL);
+    if (!window) {
+        glfwTerminate();
+        FATAL("Couldn't create GLFW window.");
+    }
+    glfwMakeContextCurrent(window);
+
+    int glver = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+    if (glver == 0)
+        FATAL("Failed to initialize OpenGL loader");
+
+#ifdef DEBUG
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(OpenGLErrorCallback, 0);
+#endif
+
+    // Print system info
+    auto renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    auto vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+    auto version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    auto glslVer =
+        reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+    Print("OpenGL Renderer: {} ({})", renderer, vendor);
+    Print("OpenGL Version: {}", version);
+    Print("GLSL Version: {}\n", glslVer);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glDepthRange(0.0, 1.0);
+    glClearDepth(1.0);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    glDisable(GL_CULL_FACE); // We're rendering skybox back faces
+}
+
+
+
+void ComputeBRDF(const CliOptions& opts) {
+    Print("Computing BRDF to {0} 2-channel {1}x{1} float texture at {2} spp",
+          opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.numSamples);
+
+    auto defines = GetShaderDefines(opts);
+    auto shaders = std::array{"brdf.vert"s, "brdf.frag"s};
+    auto program = CompileAndLinkProgram("brdf", shaders, defines);
+
+    GLenum intFormat = opts.useHalf ? GL_RG16F : GL_RG32F;
+    Texture brdfLUT{GL_TEXTURE_2D, intFormat, opts.texSize};
+
+    Framebuffer fb{};
+    fb.addDepthBuffer(brdfLUT.width, brdfLUT.height);
+    fb.addTextureBuffer(GL_COLOR_ATTACHMENT0, brdfLUT);
+    fb.bind();
+
+    glViewport(0, 0, brdfLUT.width, brdfLUT.height);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(program->id());
+    glUniform1i(1, opts.numSamples);
+
+    RenderQuad();
+
+    SaveImage(opts.outFile, *brdfLUT.image());
+}
+
+void ConvertToCubemap(const CliOptions& opts) {
     std::unique_ptr<CubeImage> cube;
     if (opts.isInputEquirect) {
         // Convert to cubemap and then retrieve data from gpu
@@ -182,7 +214,7 @@ void ibl::ConvertToCubemap(const CliOptions& opts) {
     ExportCubemap(opts.outFile, opts.exportType, *cube);
 }
 
-void ibl::ComputeIrradiance(const CliOptions& opts) {
+void ComputeIrradiance(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
     auto shaders = std::array{"convert.vert"s, "irradiance.frag"s};
     auto program = CompileAndLinkProgram("irradiance", shaders, defines);
@@ -225,7 +257,7 @@ void ibl::ComputeIrradiance(const CliOptions& opts) {
     ExportCubemap(opts.outFile, opts.exportType, *irradiance.cubemap());
 }
 
-void ibl::ComputeSpecular(const CliOptions& opts) {
+void ComputeSpecular(const CliOptions& opts) {
     auto defines = GetShaderDefines(opts);
     auto shaders = std::array{"convert.vert"s, "specular.frag"s};
     auto program = CompileAndLinkProgram("specular", shaders, defines);
@@ -279,31 +311,31 @@ void ibl::ComputeSpecular(const CliOptions& opts) {
     ExportCubemap(opts.outFile, opts.exportType, *convMap.cubemap());
 }
 
-std::vector<std::string> ibl::GetShaderDefines(const CliOptions& opts) {
-    auto defines = std::vector<std::string>{};
+} // namespace
 
-    using enum Mode;
-    switch (opts.mode) {
-    case Brdf:
-        if (opts.multiScattering)
-            defines.emplace_back("MULTISCATTERING");
+void ibl::ExecuteJob(const CliOptions& opts) {
+    if (opts.mode == Mode::Unknown)
+        FATAL("Unknown option.");
 
-        if (opts.flipUv)
-            defines.emplace_back("FLIP_V");
-        break;
+    InitOpenGL();
 
-    case Irradiance:
-        if (opts.divideLambertConstant)
-            defines.emplace_back("DIVIDED_PI");
-        [[fallthrough]];
-    case Specular:
-        if (opts.usePrefilteredIS)
-            defines.emplace_back("PREFILTERED_IS");
-        break;
+    if (opts.mode == Mode::Brdf)
+        ComputeBRDF(opts);
+    else if (opts.mode == Mode::Convert)
+        ConvertToCubemap(opts);
+    else if (opts.mode == Mode::Irradiance)
+        ComputeIrradiance(opts);
+    else if (opts.mode == Mode::Specular)
+        ComputeSpecular(opts);
 
-    default:
-        break;
+    Cleanup();
+}
+
+void ibl::Cleanup() {
+    CleanupGeometry();
+
+    if (window) {
+        glfwDestroyWindow(window);
+        glfwTerminate();
     }
-
-    return defines;
 }

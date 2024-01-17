@@ -6,9 +6,9 @@
 
 using namespace ibl;
 using namespace std::filesystem;
-
 using namespace argparse;
 
+namespace {
 void ParseSampledCube(const ArgumentParser& parser, CliOptions& opts) {
     opts.usePrefilteredIS = !parser.get<bool>("--no-prefiltered");
     opts.numSamples = parser.get<unsigned int>("--spp");
@@ -69,6 +69,7 @@ CliOptions BuildOptions(ArgumentParser& p) {
 
     return opts;
 }
+} // namespace
 
 CliOptions ibl::ParseArgs(int argc, char* argv[]) {
     /* --------------  Shared -------------- */
