@@ -1,5 +1,5 @@
-#ifndef __IBL_UTIL_H__
-#define __IBL_UTIL_H__
+#ifndef IBL_UTIL_H
+#define IBL_UTIL_H
 
 #include <iblenv.h>
 
@@ -70,4 +70,4 @@ void GLAPIENTRY OpenGLErrorCallback(GLenum source, GLenum type, GLuint id,
 } // namespace util
 } // namespace ibl
 
-#endif // __IBL_UTIL_H__
+#endif

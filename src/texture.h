@@ -1,5 +1,5 @@
-#ifndef __IBL_TEXTURE_H__
-#define __IBL_TEXTURE_H__
+#ifndef IBL_TEXTURE_H
+#define IBL_TEXTURE_H
 
 #include <iblenv.h>
 #include <image.h>
@@ -62,4 +62,4 @@ inline int MaxMipLevel(int width, int height = 0, int depth = 0) {
 
 } // namespace ibl
 
-#endif // __IBL_TEXTURE_H__
+#endif

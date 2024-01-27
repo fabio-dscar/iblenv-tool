@@ -1,5 +1,5 @@
-#ifndef __IBL_GEOMETRY_H__
-#define __IBL_GEOMETRY_H__
+#ifndef IBL_GEOMETRY_H
+#define IBL_GEOMETRY_H
 
 namespace ibl {
 
@@ -9,4 +9,4 @@ void CleanupGeometry();
 
 } // namespace ibl
 
-#endif // __IBL_GEOMETRY_H__
+#endif

@@ -169,8 +169,6 @@ void InitOpenGL() {
     glDisable(GL_CULL_FACE); // We're rendering skybox back faces
 }
 
-
-
 void ComputeBRDF(const CliOptions& opts) {
     Print("Computing BRDF to {0} 2-channel {1}x{1} float texture at {2} spp",
           opts.useHalf ? "16 bit" : "32 bit", opts.texSize, opts.numSamples);

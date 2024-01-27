@@ -1,5 +1,5 @@
-#ifndef __IBLENV_H__
-#define __IBLENV_H__
+#ifndef IBL_IBLENV_H
+#define IBL_IBLENV_H
 
 #include <cstdlib>
 #include <cassert>
@@ -25,4 +25,4 @@
 
 #define FATAL(...) THROW_ERROR(__VA_ARGS__)
 
-#endif // __IBLENV_H__
+#endif

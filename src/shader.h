@@ -1,5 +1,5 @@
-#ifndef __IBL_SHADER_H__
-#define __IBL_SHADER_H__
+#ifndef IBL_SHADER_H
+#define IBL_SHADER_H
 
 #include <iblenv.h>
 
@@ -61,4 +61,4 @@ std::string GetProgramError(unsigned int handle);
 
 } // namespace ibl
 
-#endif // __IBL_SHADER_H__
+#endif

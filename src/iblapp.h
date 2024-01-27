@@ -1,5 +1,5 @@
-#ifndef __IBLAPP_H__
-#define __IBLAPP_H__
+#ifndef IBL_IBLAPP_H
+#define IBL_IBLAPP_H
 
 #include <iblenv.h>
 
@@ -12,4 +12,4 @@ void Cleanup();
 
 } // namespace ibl
 
-#endif // __IBLAPP_H__
+#endif

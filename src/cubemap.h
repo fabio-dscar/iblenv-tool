@@ -1,5 +1,5 @@
-#ifndef __IBL_CUBEMAP_H__
-#define __IBL_CUBEMAP_H__
+#ifndef IBL_CUBEMAP_H
+#define IBL_CUBEMAP_H
 
 #include <iblenv.h>
 
@@ -44,4 +44,4 @@ std::unique_ptr<CubeImage> ImportCubeMap(const std::string& filePath, CubeLayout
 
 } // namespace ibl
 
-#endif // __IBL_CUBEMAP_H__
+#endif

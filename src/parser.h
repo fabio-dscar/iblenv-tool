@@ -1,5 +1,5 @@
-#ifndef __IBL_PARSER_H__
-#define __IBL_PARSER_H__
+#ifndef IBL_PARSER_H
+#define IBL_PARSER_H
 
 #include <iblenv.h>
 #include <cubemap.h>
@@ -29,4 +29,4 @@ CliOptions ParseArgs(int argc, char* argv[]);
 
 } // namespace ibl
 
-#endif // __IBL_PARSER_H__
+#endif

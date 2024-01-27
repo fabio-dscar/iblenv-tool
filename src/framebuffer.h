@@ -1,5 +1,5 @@
-#ifndef __FRAMEBUFFER_H__
-#define __FRAMEBUFFER_H__
+#ifndef IBL_FRAMEBUFFER_H
+#define IBL_FRAMEBUFFER_H
 
 #include <glad/glad.h>
 #include <texture.h>
@@ -45,4 +45,4 @@ public:
 
 } // namespace ibl
 
-#endif // __FRAMEBUFFER_H__
+#endif

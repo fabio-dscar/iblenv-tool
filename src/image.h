@@ -1,5 +1,5 @@
-#ifndef __IBL_IMAGE_H__
-#define __IBL_IMAGE_H__
+#ifndef IBL_IMAGE_H
+#define IBL_IMAGE_H
 
 #include <iblenv.h>
 #include <variant>
@@ -148,4 +148,4 @@ std::unique_ptr<std::byte[]> ExtractChannel(const ImageView imgView, int c, int 
 
 } // namespace ibl
 
-#endif // __IBL_IMAGE_H__
+#endif
