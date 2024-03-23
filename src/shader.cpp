@@ -25,7 +25,7 @@ enum class ibl::ShaderType : unsigned int {
 };
 
 Shader::Shader(const fs::path& path, ShaderType type, const std::string& src)
-    : path(path), name(path.filename()), source(src), type(type) {
+    : path(path), name(path.filename().string()), source(src), type(type) {
     handle = glCreateShader(static_cast<GLenum>(type));
     if (handle == 0)
         FATAL("Could not create shader {}", name);

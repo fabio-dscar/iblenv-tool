@@ -20,6 +20,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+// Fix for Windows bizarre definitions
+#ifdef _WINUSER_
+#undef LoadImage
+#endif
+
 using namespace ibl;
 using namespace ibl::util;
 using namespace std::literals;
@@ -28,21 +33,21 @@ namespace fs = std::filesystem;
 
 namespace {
 
-std::unique_ptr<Image> LoadRawImage(const fs::path& filePath, const ImageFormat& fmt) {
+std::unique_ptr<Image> LoadRawImage(const std::string& filePath, const ImageFormat& fmt) {
     std::ifstream file(filePath,
                        std::ios_base::in | std::ios_base::binary | std::ios_base::ate);
     if (file.fail())
-        FATAL("Failed to open file {}", filePath.string());
+        FATAL("Failed to open file {}", filePath);
 
     auto size = file.tellg();
     if (size == -1)
-        FATAL("Failed to query file size of {}.", filePath.string());
+        FATAL("Failed to query file size of {}.", filePath);
 
     file.seekg(0, std::ios::beg);
 
     auto imgSize = ibl::ImageSize(fmt);
     if (size != static_cast<long>(imgSize))
-        FATAL("Incompatible format specified for image {}", filePath.string());
+        FATAL("Incompatible format specified for image {}", filePath);
 
     auto data = std::make_unique<std::byte[]>(size);
     file.read(reinterpret_cast<char*>(data.get()), size);
@@ -105,35 +110,18 @@ void SaveImgFormatImage(const fs::path& filePath, const ImageView& img) {
     file.write(reinterpret_cast<const char*>(img.data()), header.totalSize);
 }
 
-} // namespace
-
-std::unique_ptr<Image> util::LoadImage(const fs::path& filePath, ImageFormat* fmt) {
-    auto ext = filePath.extension().string();
-    if (ext == ".exr")
-        return LoadEXRImage(filePath);
-    else if (ext == ".hdr")
-        return LoadHDRImage(filePath);
-    else if (ext == ".png")
-        return LoadPNGImage(filePath);
-    else if (ext == ".bin") {
-        if (!fmt)
-            FATAL("ImageFormat is required for loading raw dumps.");
-
-        return LoadRawImage(filePath, *fmt);
-    }
-
-    FATAL("Unsupported format {}", ext);
-}
-
-std::unique_ptr<Image> util::LoadPNGImage(const fs::path& filePath) {
+// ------------------------------------------------------------------
+//    Load image functions
+// ------------------------------------------------------------------
+std::unique_ptr<Image> LoadPNGImage(const std::string& filePath) {
     ImageFormat srcFmt{.pFmt = PixelFormat::U8};
     auto* data = reinterpret_cast<std::byte*>(
         stbi_load(filePath.c_str(), &srcFmt.width, &srcFmt.height, &srcFmt.nChannels, 0));
 
     if (!data)
-        FATAL("Failed to load PNG image: {}", filePath.string());
+        FATAL("Failed to load PNG image: {}", filePath);
 
-    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath.string());
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
 
     ImageFormat dstFmt = srcFmt;
     dstFmt.pFmt = PixelFormat::F32;
@@ -145,15 +133,15 @@ std::unique_ptr<Image> util::LoadPNGImage(const fs::path& filePath) {
     return retImg;
 }
 
-std::unique_ptr<Image> util::LoadHDRImage(const fs::path& filePath) {
+std::unique_ptr<Image> LoadHDRImage(const std::string& filePath) {
     ImageFormat srcFmt{.pFmt = PixelFormat::F32};
     auto* data =
         stbi_loadf(filePath.c_str(), &srcFmt.width, &srcFmt.height, &srcFmt.nChannels, 0);
 
     if (!data)
-        FATAL("Failed to load HDR image: {}", filePath.string());
+        FATAL("Failed to load HDR image: {}", filePath);
 
-    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath.string());
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
 
     ImageFormat dstFmt = srcFmt;
     dstFmt.nChannels = 3; // Get rid of alpha if available on source image
@@ -164,7 +152,7 @@ std::unique_ptr<Image> util::LoadHDRImage(const fs::path& filePath) {
     return retImg;
 }
 
-std::unique_ptr<Image> util::LoadEXRImage(const fs::path& filePath, bool keepAlpha) {
+std::unique_ptr<Image> LoadEXRImage(const std::string& filePath, bool keepAlpha = false) {
     float* out = nullptr; // width * height * RGBA
     const char* err = nullptr;
 
@@ -179,10 +167,10 @@ std::unique_ptr<Image> util::LoadEXRImage(const fs::path& filePath, bool keepAlp
             errStr = err;
             FreeEXRErrorMessage(err);
         }
-        FATAL("Failed to load EXR image {}: {}", filePath.string(), errStr);
+        FATAL("Failed to load EXR image {}: {}", filePath, errStr);
     }
 
-    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath.string());
+    Print("Loaded {}x{} image {}", srcFmt.width, srcFmt.height, filePath);
 
     ImageFormat dstFmt = srcFmt;
     if (!keepAlpha) // Throw away the alpha on copy
@@ -194,41 +182,10 @@ std::unique_ptr<Image> util::LoadEXRImage(const fs::path& filePath, bool keepAlp
     return retImg;
 }
 
-void util::SaveMipmappedImage(const fs::path& filePath, const Image& image) {
-    const auto& [parent, fname, ext] = SplitFilePath(filePath);
-
-    auto numLevels = image.numLevels();
-
-    auto NameOutput = [&](int lvl) -> auto {
-        if (numLevels > 1)
-            return std::format("{}_{}{}", fname, lvl, ext);
-        return filePath.filename().string();
-    };
-
-    if (numLevels > 1)
-        Print("Saving {} mip levels...", numLevels);
-
-    for (int lvl = 0; lvl < image.numLevels(); ++lvl)
-        SaveImage(parent / NameOutput(lvl), ImageView{image, lvl});
-}
-
-void util::SaveImage(const fs::path& filePath, const ImageView& image) {
-    auto ext = filePath.extension().string();
-    if (ext == ".exr")
-        SaveEXRImage(filePath, image);
-    else if (ext == ".hdr")
-        SaveHDRImage(filePath, image);
-    else if (ext == ".png")
-        SavePNGImage(filePath, image);
-    else if (ext == ".bin")
-        SaveRawImage(filePath, image);
-    else if (ext == ".img")
-        SaveImgFormatImage(filePath, image);
-    else
-        FATAL("Unsupported format {}", ext);
-}
-
-void util::SavePNGImage(const fs::path& filePath, const ImageView& image) {
+// ------------------------------------------------------------------
+//    Save image functions
+// ------------------------------------------------------------------
+void SavePNGImage(const std::string& filePath, const ImageView& image) {
     auto imgFmt = image.format();
 
     // Always output 3 channel 8 bit for .png
@@ -242,7 +199,7 @@ void util::SavePNGImage(const fs::path& filePath, const ImageView& image) {
                    newImg.data(), 0);
 }
 
-void util::SaveHDRImage(const fs::path& filePath, const ImageView& image) {
+void SaveHDRImage(const std::string& filePath, const ImageView& image) {
     auto imgFmt = image.format();
 
     // Always output 3 channel 32 bit for .HDR
@@ -255,10 +212,10 @@ void util::SaveHDRImage(const fs::path& filePath, const ImageView& image) {
     stbi_write_hdr(filePath.c_str(), newFmt.width, newFmt.height, newFmt.nChannels,
                    reinterpret_cast<const float*>(newImg.data()));
 
-    Print("Saved HDR file {}", filePath.string());
+    Print("Saved HDR file {}", filePath);
 }
 
-void util::SaveEXRImage(const fs::path& filePath, const ImageView& image) {
+void SaveEXRImage(const std::string& filePath, const ImageView& image) {
     using ByteArray = std::unique_ptr<std::byte[]>;
 
     constexpr int outNumChannels = 3; // Always save 3 channel image
@@ -331,7 +288,61 @@ void util::SaveEXRImage(const fs::path& filePath, const ImageView& image) {
         FATAL("Error saving EXR image {}", errMsg);
     }
 
-    Print("Saved EXR file {}", filePath.string());
+    Print("Saved EXR file {}", filePath);
+}
+
+} // namespace
+
+std::unique_ptr<Image> util::LoadImage(const fs::path& filePath, ImageFormat* fmt) {
+    auto ext = filePath.extension().string();
+    if (ext == ".exr")
+        return LoadEXRImage(filePath.string());
+    else if (ext == ".hdr")
+        return LoadHDRImage(filePath.string());
+    else if (ext == ".png")
+        return LoadPNGImage(filePath.string());
+    else if (ext == ".bin") {
+        if (!fmt)
+            FATAL("ImageFormat is required for loading raw dumps.");
+
+        return LoadRawImage(filePath.string(), *fmt);
+    }
+
+    FATAL("Unsupported format {}", ext);
+}
+
+void util::SaveMipmappedImage(const fs::path& filePath, const Image& image) {
+    const auto& [parent, fname, ext] = SplitFilePath(filePath);
+
+    auto numLevels = image.numLevels();
+
+    auto NameOutput = [&](int lvl) -> auto {
+        if (numLevels > 1)
+            return std::format("{}_{}{}", fname, lvl, ext);
+        return filePath.filename().string();
+    };
+
+    if (numLevels > 1)
+        Print("Saving {} mip levels...", numLevels);
+
+    for (int lvl = 0; lvl < image.numLevels(); ++lvl)
+        SaveImage(parent / NameOutput(lvl), ImageView{image, lvl});
+}
+
+void util::SaveImage(const fs::path& filePath, const ImageView& image) {
+    auto ext = filePath.extension().string();
+    if (ext == ".exr")
+        SaveEXRImage(filePath.string(), image);
+    else if (ext == ".hdr")
+        SaveHDRImage(filePath.string(), image);
+    else if (ext == ".png")
+        SavePNGImage(filePath.string(), image);
+    else if (ext == ".bin")
+        SaveRawImage(filePath.string(), image);
+    else if (ext == ".img")
+        SaveImgFormatImage(filePath.string(), image);
+    else
+        FATAL("Unsupported format {}", ext);
 }
 
 std::optional<std::string> util::ReadTextFile(const fs::path& filePath) {

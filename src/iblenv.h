@@ -13,6 +13,7 @@
 #include <format>
 #include <filesystem>
 #include <map>
+#include <span>
 
 #if defined(DEBUG)
 #define THROW_ERROR(...)                                                                 \

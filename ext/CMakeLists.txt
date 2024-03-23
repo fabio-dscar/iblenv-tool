@@ -8,7 +8,7 @@ include(FetchContent)
 FetchContent_Declare(
   ZLIB
   GIT_REPOSITORY https://github.com/madler/zlib.git
-  GIT_TAG        09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851
+  GIT_TAG        99b229487c2997b4b22eaef90fedfbff4d8826cc
   FIND_PACKAGE_ARGS
 )
 

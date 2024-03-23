@@ -23,16 +23,8 @@ namespace util {
 // ------------------------------------------------------------------
 std::unique_ptr<Image> LoadImage(const fs::path& filePath, ImageFormat* fmt = nullptr);
 
-std::unique_ptr<Image> LoadHDRImage(const fs::path& filePath);
-std::unique_ptr<Image> LoadEXRImage(const fs::path& filePath, bool keepAlpha = false);
-std::unique_ptr<Image> LoadPNGImage(const fs::path& filePath);
-
 void SaveImage(const fs::path& filePath, const ImageView& image);
 void SaveMipmappedImage(const fs::path& filePath, const Image& image);
-
-void SaveEXRImage(const fs::path& filePath, const ImageView& image);
-void SaveHDRImage(const fs::path& filePath, const ImageView& image);
-void SavePNGImage(const fs::path& filePath, const ImageView& image);
 
 // ------------------------------------------------------------------
 //    General IO
@@ -41,8 +33,8 @@ std::optional<std::string> ReadTextFile(const fs::path& filePath);
 
 inline auto SplitFilePath(const fs::path& filePath) {
     auto parent = filePath.parent_path();
-    std::string fname = filePath.filename().replace_extension("");
-    std::string ext = filePath.extension();
+    std::string fname = filePath.filename().replace_extension("").string();
+    std::string ext = filePath.extension().string();
 
     return std::tuple{parent, fname, ext};
 }
